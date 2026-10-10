@@ -21,13 +21,66 @@ Turn any unrooted Android device into a complete, automated private cloud server
 4. Disable Phantom Process Killer (if running Android 12+):
    - Developer Options -> Disable child process restrictions.
 ---
-## Step-by-Step Installation
-### Step 1: Base Environment & Storage Setup
-Open Termux and execute:
+## One click installation 
+
+# Pocket Cloud: Complete Self-Hosted Android Server
+## ⚡ 1-Click Automated Setup
+
+Run this single command inside Termux:
+
 ```bash
-# Update base repositories
+curl -sL [https://raw.githubusercontent.com/huzefdev/pocket-cloud/main/install.sh](https://raw.githubusercontent.com/huzefdev/pocket-cloud/main/install.sh) | bash
+
+
+🛠️ Manual Step-by-Step Installation
+If you prefer to install services manually, follow these steps:
+Step 1: Base Environment & Storage
+
 pkg update && pkg upgrade -y
-# Grant storage access permission to Termux
 termux-setup-storage
-# Install core utilities, build essentials, and network tools
-pkg install -y wget curl git tar jq proot ffmpeg
+pkg install -y wget curl git tar jq proot ffmpeg proot-distro syncthing
+
+
+Step 2: FileBrowser Setup (Replaces Google Drive)
+curl -fsSL [https://raw.githubusercontent.com/filebrowser/get/master/get.sh](https://raw.githubusercontent.com/filebrowser/get/master/get.sh) | bash
+mkdir -p ~/services/filebrowser
+filebrowser config init -a 0.0.0.0 -p 8080 -r ~/storage/shared -d ~/services/filebrowser/filebrowser.db
+filebrowser users add admin admin --perm.admin=true -d ~/services/filebrowser/filebrowser.db
+
+
+Step 3: Syncthing Setup (Replaces Google Photos Sync)
+Termux:
+   pkg install syncthing -y
+
+ * Syncthing start:
+   syncthing
+
+syncthing generate --home=~/.config/syncthing
+sed -i 's/<address>127.0.0.1:8384<\/address>/<address>0.0.0.0:8384<\/address>/' ~/.config/syncthing/config.xml
+
+
+
+Step 4: Jellyfin Media Server (via Ubuntu PRoot)
+
+proot-distro install ubuntu
+proot-distro login ubuntu
+
+
+Inside Ubuntu Container Shell:
+
+apt update && apt upgrade -y
+apt install -y curl wget gnupg lsb-release ffmpeg libicu-dev
+mkdir -p /etc/apt/keyrings
+curl -fsSL [https://repo.jellyfin.org/jellyfin_team.gpg.key](https://repo.jellyfin.org/jellyfin_team.gpg.key) | gpg --dearmor -o /etc/apt/keyrings/jellyfin.gpg
+echo "deb [signed-by=/etc/apt/keyrings/jellyfin.gpg arch=$(dpkg --print-architecture)] [https://repo.jellyfin.org/ubuntu](https://repo.jellyfin.org/ubuntu) $(lsb_release -cs) main" | tee /etc/apt/sources.list.d/jellyfin.list
+apt update && apt install -y jellyfin
+
+
+
+
+Accessing Your Dashboards
+Open your browser from any device connected to the same Wi-Fi network:
+Files: http://<PHONE-IP>:8080 (Default: admin / admin)
+Sync: http://<PHONE-IP>:8384
+Media: http://<PHONE-IP>:8096
+(Find your phone's IP inside Termux using ifconfig wlan0)
