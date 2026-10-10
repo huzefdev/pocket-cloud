@@ -30,44 +30,44 @@ Run this single command inside Termux:
 
 ```bash
 curl -sL [https://raw.githubusercontent.com/huzefdev/pocket-cloud/main/install.sh](https://raw.githubusercontent.com/huzefdev/pocket-cloud/main/install.sh) | bash
-```bash
+```
 
 🛠️ Manual Step-by-Step Installation
 If you prefer to install services manually, follow these steps:
 Step 1: Base Environment & Storage
 
 pkg update && pkg upgrade -y
+```bash
 termux-setup-storage
 pkg install -y wget curl git tar jq proot ffmpeg proot-distro syncthing
 
-
+```
 Step 2: FileBrowser Setup (Replaces Google Drive)
+```bash
 curl -fsSL [https://raw.githubusercontent.com/filebrowser/get/master/get.sh](https://raw.githubusercontent.com/filebrowser/get/master/get.sh) | bash
 mkdir -p ~/services/filebrowser
 filebrowser config init -a 0.0.0.0 -p 8080 -r ~/storage/shared -d ~/services/filebrowser/filebrowser.db
 filebrowser users add admin admin --perm.admin=true -d ~/services/filebrowser/filebrowser.db
-
-
+```
 Step 3: Syncthing Setup (Replaces Google Photos Sync)
 Termux:
+```bash
    pkg install syncthing -y
+```
 
  * Syncthing start:
-   syncthing
-
-syncthing generate --home=~/.config/syncthing
-sed -i 's/<address>127.0.0.1:8384<\/address>/<address>0.0.0.0:8384<\/address>/' ~/.config/syncthing/config.xml
-
-
+```bash
+    syncthing
+```
 
 Step 4: Jellyfin Media Server (via Ubuntu PRoot)
-
+```bash
 proot-distro install ubuntu
 proot-distro login ubuntu
-
+```
 
 Inside Ubuntu Container Shell:
-
+```bash
 apt update && apt upgrade -y
 apt install -y curl wget gnupg lsb-release ffmpeg libicu-dev
 mkdir -p /etc/apt/keyrings
@@ -75,7 +75,7 @@ curl -fsSL [https://repo.jellyfin.org/jellyfin_team.gpg.key](https://repo.jellyf
 echo "deb [signed-by=/etc/apt/keyrings/jellyfin.gpg arch=$(dpkg --print-architecture)] [https://repo.jellyfin.org/ubuntu](https://repo.jellyfin.org/ubuntu) $(lsb_release -cs) main" | tee /etc/apt/sources.list.d/jellyfin.list
 apt update && apt install -y jellyfin
 
-
+```
 
 
 Accessing Your Dashboards
