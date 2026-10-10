@@ -26,6 +26,12 @@ Turn any unrooted Android device into a complete, automated private cloud server
 # Pocket Cloud: Complete Self-Hosted Android Server
 ## ⚡ 1-Click Automated Setup
 
+
+before that if you encounter any problems contact:
+huzef.dev@gmail.com 
+or
+https://discord.gg/GcGkW5fvDh
+
 Run this single command inside Termux:
 
 ```bash
