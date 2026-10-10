@@ -29,7 +29,8 @@ Turn any unrooted Android device into a complete, automated private cloud server
 Run this single command inside Termux:
 
 ```bash
-curl -sL [https://raw.githubusercontent.com/huzefdev/pocket-cloud/main/install.sh](https://raw.githubusercontent.com/huzefdev/pocket-cloud/main/install.sh) | bash
+curl -sL https://raw.githubusercontent.com/huzefdev/pocket-cloud/main/install.sh | bash
+
 ```
 
 🛠️ Manual Step-by-Step Installation
