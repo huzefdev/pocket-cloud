@@ -1,4 +1,3 @@
-cat << 'EOF' > install.sh
 #!/data/data/com.termux/files/usr/bin/bash
 
 R='\033[0;31m'
@@ -133,6 +132,10 @@ cat << 'LAUNCHER' > ~/start-services.sh
 #!/data/data/com.termux/files/usr/bin/bash
 termux-wake-lock 2>/dev/null || true
 mkdir -p ~/services/filebrowser ~/.config/syncthing
+
+IP=$(ip -4 addr show wlan0 2>/dev/null | awk '/inet / {print $2}' | cut -d/ -f1)
+[ -z "$IP" ] && IP=$(ip route get 1.1.1.1 2>/dev/null | awk '{print $7}')
+[ -z "$IP" ] && IP="127.0.0.1"
 
 FB_CMD=$(command -v filebrowser || echo "$HOME/services/filebrowser/filebrowser")
 [ -x "$FB_CMD" ] && nohup "$FB_CMD" -d ~/services/filebrowser/filebrowser.db > ~/services/filebrowser/filebrowser.log 2>&1 &
