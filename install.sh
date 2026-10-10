@@ -33,10 +33,14 @@ echo ""
 
 termux-wake-lock
 
-echo -e "${B}[NODE-INIT]${NC} Authenticating Android Internal Storage mount..."
-termux-setup-storage
-echo -e "${Y}[ACTION REQUIRED]${NC} Tap 'ALLOW' on your screen if permission popup appears."
-sleep 2
+echo -e "${B}[NODE-INIT]${NC} Checking Android Internal Storage mount..."
+if [ ! -d "$HOME/storage" ]; then
+    termux-setup-storage || true
+    echo -e "${Y}[ACTION REQUIRED]${NC} Tap 'ALLOW' on your screen if permission popup appears."
+    sleep 3
+else
+    echo -e "${G}[✓] Storage link already configured! Skipping...${NC}"
+fi
 
 echo -e "${C}[SYS-REGISTRY]${NC} Injecting compiler tools, network bridges, and PRoot subsystem..."
 pkg update -y && pkg install -y wget curl git tar jq proot proot-distro syncthing
