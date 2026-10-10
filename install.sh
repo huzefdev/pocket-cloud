@@ -141,9 +141,6 @@ command -v syncthing >/dev/null 2>&1 && nohup syncthing -no-browser -home=~/.con
 
 proot-distro list 2>/dev/null | grep -q "ubuntu (installed)" && nohup proot-distro login ubuntu --bind /data/data/com.termux/files/home/storage/shared:/media/storage -- jellyfin > ~/jellyfin.log 2>&1 &
 
-IP=$(ifconfig wlan0 2>/dev/null | grep 'inet ' | awk '{print $2}')
-[ -z "$IP" ] && IP="127.0.0.1"
-
 clear
 echo -e "\033[0;32m"
 echo "======================================================================"
@@ -173,6 +170,3 @@ if [[ "$run_now" =~ ^[Yy]$ ]]; then
 else
     echo -e "${C}Start anytime with: ${BOLD}bash ~/start-services.sh${NC}"
 fi
-EOF
-chmod +x install.sh
-bash install.sh
