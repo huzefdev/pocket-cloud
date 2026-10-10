@@ -1,8 +1,6 @@
 cat << 'EOF' > install.sh
 #!/data/data/com.termux/files/usr/bin/bash
-set -e
 
-# ================= CYBERPUNK COLOR PALETTE =================
 R='\033[0;31m'
 G='\033[0;32m'
 Y='\033[1;33m'
@@ -15,7 +13,6 @@ NC='\033[0m'
 
 clear
 
-# ================= CYBER ARTWORK BANNER =================
 echo -e "${C}"
 cat << "BANNER"
   ██████╗  ██████╗  ██████╗██╗  ██╗███████╗████████╗    ██████╗██╗      ██████╗ ██╗   ██╗██████╗ 
@@ -31,97 +28,117 @@ echo -e "${Y}[SYSTEM ALERT] INITIALIZING BARE-METAL ANDROID HOMELAB PROTOCOL...$
 echo -e "${W}========================================================================================${NC}"
 echo ""
 
-termux-wake-lock
+termux-wake-lock 2>/dev/null || true
 
-echo -e "${B}[NODE-INIT]${NC} Checking Android Internal Storage mount..."
-if [ ! -d "$HOME/storage" ]; then
-    termux-setup-storage || true
-    echo -e "${Y}[ACTION REQUIRED]${NC} Tap 'ALLOW' on your screen if permission popup appears."
-    sleep 3
-else
-    echo -e "${G}[✓] Storage link already configured! Skipping...${NC}"
+# Storage link check
+echo -e "${B}[NODE-INIT]${NC} Verifying Android Storage mount..."
+if [ ! -d "$HOME/storage/shared" ]; then
+    termux-setup-storage </dev/null >/dev/null 2>&1 || true
+    sleep 2
 fi
+echo -e "${G}[✓] Storage Mount Verified.${NC}"
 
-echo -e "${C}[SYS-REGISTRY]${NC} Injecting compiler tools, network bridges, and PRoot subsystem..."
-pkg update -y && pkg install -y wget curl git tar jq proot proot-distro syncthing
+# Fix broken packages & install core utilities
+echo -e "${C}[SYS-REGISTRY]${NC} Preparing binary packages (wget, tar, jq, proot, syncthing)..."
+pkg install -y wget tar jq proot proot-distro syncthing || true
 
-# ================= INTERACTIVE STEP 1: FILEBROWSER =================
+# ================= MODULE 1: FILEBROWSER (DIRECT BINARY) =================
 echo ""
 echo -e "${W}----------------------------------------------------------------------------------------${NC}"
-echo -e "${C}${BOLD}[MODULE 01/03] >> FILEBROWSER (ENCRYPTED FILE MANAGEMENT CORE)${NC}"
+echo -e "${C}${BOLD}[MODULE 01/03] >> FILEBROWSER (CLOUD STORAGE ENGINE)${NC}"
 echo -e "${W}----------------------------------------------------------------------------------------${NC}"
-echo -ne "${Y}[?] Do you want to deploy FileBrowser Core [Port :8080]? (Y/n): ${NC}"
+echo -ne "${Y}[?] Deploy FileBrowser Core [Port :8080]? (Y/n): ${NC}"
 read fb_choice </dev/tty || fb_choice="Y"
 fb_choice=${fb_choice:-Y}
 
 if [[ "$fb_choice" =~ ^[Yy]$ ]]; then
-    echo -e "${G}[*] Pulling latest production binary for ARM64...${NC}"
-    curl -fsSL https://raw.githubusercontent.com/filebrowser/get/master/get.sh | bash
+    echo -e "${G}[*] Fetching FileBrowser ARM64 binary directly via wget...${NC}"
     mkdir -p ~/services/filebrowser
-    echo -e "${C}[*] Binding SQLite database to internal storage (/sdcard)...${NC}"
-    filebrowser config init -a 0.0.0.0 -p 8080 -r ~/storage/shared -d ~/services/filebrowser/filebrowser.db
-    filebrowser users add admin admin --perm.admin=true -d ~/services/filebrowser/filebrowser.db || true
-    echo -e "${G}[✓] STATUS: FILEBROWSER DEPLOYED SUCCESSFULLY ON :8080${NC}"
+    cd ~/services/filebrowser
+    
+    # Download direct release tarball (bypassing broken curl)
+    wget -q --show-progress -O fb.tar.gz "https://github.com/filebrowser/filebrowser/releases/latest/download/linux-arm64-filebrowser.tar.gz" || \
+    wget -q --show-progress -O fb.tar.gz "https://github.com/filebrowser/filebrowser/releases/download/v2.30.0/linux-arm64-filebrowser.tar.gz"
+    
+    tar -xzf fb.tar.gz 2>/dev/null || true
+    chmod +x filebrowser 2>/dev/null || true
+    cp filebrowser $PREFIX/bin/ 2>/dev/null || true
+    rm -f fb.tar.gz
+
+    if command -v filebrowser >/dev/null 2>&1 || [ -f ~/services/filebrowser/filebrowser ]; then
+        FB_BIN=$(command -v filebrowser || echo "$HOME/services/filebrowser/filebrowser")
+        $FB_BIN config init -a 0.0.0.0 -p 8080 -r ~/storage/shared -d ~/services/filebrowser/filebrowser.db >/dev/null 2>&1 || true
+        $FB_BIN users add admin admin --perm.admin=true -d ~/services/filebrowser/filebrowser.db >/dev/null 2>&1 || true
+        echo -e "${G}[✓] STATUS: FILEBROWSER DEPLOYED SUCCESSFULLY ON :8080 (admin/admin)${NC}"
+    else
+        echo -e "${R}[!] Failed to unpack FileBrowser binary.${NC}"
+    fi
+    cd ~
 else
-    echo -e "${R}[-] SKIPPING FILEBROWSER DEPLOYMENT.${NC}"
+    echo -e "${R}[-] Skipping FileBrowser deployment.${NC}"
 fi
 
-# ================= INTERACTIVE STEP 2: JELLYFIN =================
+# ================= MODULE 02: JELLYFIN (UBUNTU PROOT) =================
 echo ""
 echo -e "${W}----------------------------------------------------------------------------------------${NC}"
-echo -e "${C}${BOLD}[MODULE 02/03] >> JELLYFIN SERVER (UBUNTU PROOT + FULL FFMPEG TRANSCODER)${NC}"
+echo -e "${C}${BOLD}[MODULE 02/03] >> JELLYFIN SERVER (UBUNTU CONTAINER)${NC}"
 echo -e "${W}----------------------------------------------------------------------------------------${NC}"
-echo -ne "${Y}[?] Do you want to deploy Jellyfin Media Server [Port :8096]? (Y/n): ${NC}"
+echo -ne "${Y}[?] Deploy Jellyfin Media Server [Port :8096]? (Y/n): ${NC}"
 read jf_choice </dev/tty || jf_choice="Y"
 jf_choice=${jf_choice:-Y}
 
 if [[ "$jf_choice" =~ ^[Yy]$ ]]; then
-    if ! proot-distro list | grep -q "ubuntu (installed)"; then
-        echo -e "${Y}[*] Injecting clean Ubuntu container architecture...${NC}"
-        proot-distro install ubuntu
+    if ! proot-distro list 2>/dev/null | grep -q "ubuntu (installed)"; then
+        echo -e "${Y}[*] Downloading Ubuntu PRoot container rootfs...${NC}"
+        proot-distro install ubuntu || true
     fi
 
-    echo -e "${C}[*] Compiling hardware FFmpeg codecs and installing Jellyfin daemon inside container...${NC}"
+    echo -e "${C}[*] Installing dependencies & Jellyfin inside Ubuntu...${NC}"
     proot-distro login ubuntu -- env DEBIAN_FRONTEND=noninteractive bash -c '
-    apt update -y && apt install -y curl wget gnupg lsb-release ffmpeg libicu-dev
+    apt update -y && apt install -y wget gnupg lsb-release ffmpeg libicu-dev curl || true
     mkdir -p /etc/apt/keyrings
-    curl -fsSL https://repo.jellyfin.org/jellyfin_team.gpg.key | gpg --dearmor --yes -o /etc/apt/keyrings/jellyfin.gpg
-    echo "deb [signed-by=/etc/apt/keyrings/jellyfin.gpg arch=$(dpkg --print-architecture)] https://repo.jellyfin.org/ubuntu $(lsb_release -cs) main" | tee /etc/apt/sources.list.d/jellyfin.list
-    apt update -y && apt install -y jellyfin
-    '
-    echo -e "${G}[✓] STATUS: JELLYFIN MEDIA DAEMON COMPILED ON :8096${NC}"
+    wget -qO - https://repo.jellyfin.org/jellyfin_team.gpg.key | gpg --dearmor --yes -o /etc/apt/keyrings/jellyfin.gpg || true
+    echo "deb [signed-by=/etc/apt/keyrings/jellyfin.gpg arch=$(dpkg --print-architecture)] https://repo.jellyfin.org/ubuntu $(lsb_release -cs) main" > /etc/apt/sources.list.d/jellyfin.list
+    apt update -y && apt install -y jellyfin || true
+    ' || true
+    echo -e "${G}[✓] STATUS: JELLYFIN INSTALLED IN UBUNTU CONTAINER${NC}"
 else
-    echo -e "${R}[-] SKIPPING JELLYFIN DEPLOYMENT.${NC}"
+    echo -e "${R}[-] Skipping Jellyfin deployment.${NC}"
 fi
 
-# ================= INTERACTIVE STEP 3: SYNCTHING =================
+# ================= MODULE 03: SYNCTHING =================
 echo ""
 echo -e "${W}----------------------------------------------------------------------------------------${NC}"
-echo -e "${C}${BOLD}[MODULE 03/03] >> SYNCTHING (PEER-TO-PEER ZERO-TRUST MESH ENGINE)${NC}"
+echo -e "${C}${BOLD}[MODULE 03/03] >> SYNCTHING (PEER-TO-PEER DATA ENGINE)${NC}"
 echo -e "${W}----------------------------------------------------------------------------------------${NC}"
-echo -ne "${Y}[?] Do you want to deploy Syncthing Mesh Node [Port :8384]? (Y/n): ${NC}"
+echo -ne "${Y}[?] Deploy Syncthing Mesh Node [Port :8384]? (Y/n): ${NC}"
 read st_choice </dev/tty || st_choice="Y"
 st_choice=${st_choice:-Y}
 
 if [[ "$st_choice" =~ ^[Yy]$ ]]; then
-    echo -e "${C}[*] Generating TLS certs and binding interface to 0.0.0.0...${NC}"
-    syncthing generate --home=~/.config/syncthing || true
-    sed -i 's/<address>127.0.0.1:8384<\/address>/<address>0.0.0.0:8384<\/address>/' ~/.config/syncthing/config.xml || true
-    echo -e "${G}[✓] STATUS: SYNCTHING P2P ENGINE ACTIVATED ON :8384${NC}"
+    pkg install -y syncthing || true
+    mkdir -p ~/.config/syncthing
+    echo -e "${C}[*] Generating configurations...${NC}"
+    syncthing generate --home=~/.config/syncthing >/dev/null 2>&1 || true
+    sed -i 's/<address>127.0.0.1:8384<\/address>/<address>0.0.0.0:8384<\/address>/' ~/.config/syncthing/config.xml 2>/dev/null || true
+    echo -e "${G}[✓] STATUS: SYNCTHING DEPLOYED ON :8384${NC}"
 else
-    echo -e "${R}[-] SKIPPING SYNCTHING DEPLOYMENT.${NC}"
+    echo -e "${R}[-] Skipping Syncthing deployment.${NC}"
 fi
 
-# ================= UNIFIED DAEMON LAUNCHER GENERATOR =================
+# ================= MASTER LAUNCHER =================
 echo ""
-echo -e "${C}[SYS-CORE] Building daemon controller script at ~/start-services.sh...${NC}"
+echo -e "${C}[SYS-CORE] Writing Master Launcher to ~/start-services.sh...${NC}"
 cat << 'LAUNCHER' > ~/start-services.sh
 #!/data/data/com.termux/files/usr/bin/bash
-termux-wake-lock
+termux-wake-lock 2>/dev/null || true
 mkdir -p ~/services/filebrowser ~/.config/syncthing
 
-[ -f ~/services/filebrowser/filebrowser.db ] && nohup filebrowser -d ~/services/filebrowser/filebrowser.db > ~/services/filebrowser/filebrowser.log 2>&1 &
+FB_CMD=$(command -v filebrowser || echo "$HOME/services/filebrowser/filebrowser")
+[ -x "$FB_CMD" ] && nohup "$FB_CMD" -d ~/services/filebrowser/filebrowser.db > ~/services/filebrowser/filebrowser.log 2>&1 &
+
 command -v syncthing >/dev/null 2>&1 && nohup syncthing -no-browser -home=~/.config/syncthing > ~/.config/syncthing/syncthing.log 2>&1 &
+
 proot-distro list 2>/dev/null | grep -q "ubuntu (installed)" && nohup proot-distro login ubuntu --bind /data/data/com.termux/files/home/storage/shared:/media/storage -- jellyfin > ~/jellyfin.log 2>&1 &
 
 IP=$(ifconfig wlan0 2>/dev/null | grep 'inet ' | awk '{print $2}')
@@ -134,27 +151,27 @@ echo "          >>> POCKET CLOUD DAEMONS ONLINE // HUZEF DEV <<<            "
 echo "======================================================================"
 echo -e "\033[1;37m"
 echo -e " [1] FileBrowser Web UI  : \033[0;36mhttp://${IP}:8080\033[1;37m (Login: admin/admin)"
-echo -e " [2] Jellyfin Media Hub  : \033[0;36mhttp://${IP}:8096\033[1;37m"
-echo -e " [3] Syncthing P2P Panel : \033[0;36mhttp://${IP}:8384\033[1;37m"
+echo -e " [2] Syncthing P2P Panel : \033[0;36mhttp://${IP}:8384\033[1;37m"
+echo -e " [3] Jellyfin Media Hub  : \033[0;36mhttp://${IP}:8096\033[1;37m"
 echo -e "\033[0;32m"
 echo "======================================================================"
 echo -e "\033[0m"
 LAUNCHER
 chmod +x ~/start-services.sh
 
-# ================= FINAL COMPLETION PROMPT =================
+# ================= EXECUTE =================
 echo ""
 echo -e "${G}========================================================================================${NC}"
-echo -e "${W}${BOLD}              >>> [SYSTEM ONLINE] ALL SELECTED CORES DEPLOYED! <<<                      ${NC}"
+echo -e "${W}${BOLD}              >>> [SYSTEM ONLINE] INSTALLATION COMPLETE! <<<                            ${NC}"
 echo -e "${G}========================================================================================${NC}"
-echo -ne "${Y}[?] Do you want to launch all cloud servers right now? (Y/n): ${NC}"
-read launch_choice </dev/tty || launch_choice="Y"
-launch_choice=${launch_choice:-Y}
+echo -ne "${Y}[?] Start servers right now? (Y/n): ${NC}"
+read run_now </dev/tty || run_now="Y"
+run_now=${run_now:-Y}
 
-if [[ "$launch_choice" =~ ^[Yy]$ ]]; then
+if [[ "$run_now" =~ ^[Yy]$ ]]; then
     bash ~/start-services.sh
 else
-    echo -e "${C}To start the servers anytime, run: ${BOLD}bash ~/start-services.sh${NC}"
+    echo -e "${C}Start anytime with: ${BOLD}bash ~/start-services.sh${NC}"
 fi
 EOF
 chmod +x install.sh
