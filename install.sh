@@ -31,16 +31,13 @@ echo -e "${Y}[SYSTEM ALERT] INITIALIZING BARE-METAL ANDROID HOMELAB PROTOCOL...$
 echo -e "${W}========================================================================================${NC}"
 echo ""
 
-# Prevent CPU deep sleep
 termux-wake-lock
 
-# Step 0: Storage Permission Setup
 echo -e "${B}[NODE-INIT]${NC} Authenticating Android Internal Storage mount..."
 termux-setup-storage
-echo -e "${Y}[ACTION REQUIRED]${NC} Tap 'ALLOW' on your screen to authorize filesystem binding."
-sleep 3
+echo -e "${Y}[ACTION REQUIRED]${NC} Tap 'ALLOW' on your screen if permission popup appears."
+sleep 2
 
-# Step 0.5: Base Dependencies
 echo -e "${C}[SYS-REGISTRY]${NC} Injecting compiler tools, network bridges, and PRoot subsystem..."
 pkg update -y && pkg install -y wget curl git tar jq proot proot-distro syncthing
 
@@ -49,7 +46,8 @@ echo ""
 echo -e "${W}----------------------------------------------------------------------------------------${NC}"
 echo -e "${C}${BOLD}[MODULE 01/03] >> FILEBROWSER (ENCRYPTED FILE MANAGEMENT CORE)${NC}"
 echo -e "${W}----------------------------------------------------------------------------------------${NC}"
-read -p "$(echo -e "${Y}[?] Do you want to deploy FileBrowser Core [Port :8080]? (Y/n): ${NC}")" fb_choice
+echo -ne "${Y}[?] Do you want to deploy FileBrowser Core [Port :8080]? (Y/n): ${NC}"
+read fb_choice </dev/tty || fb_choice="Y"
 fb_choice=${fb_choice:-Y}
 
 if [[ "$fb_choice" =~ ^[Yy]$ ]]; then
@@ -69,7 +67,8 @@ echo ""
 echo -e "${W}----------------------------------------------------------------------------------------${NC}"
 echo -e "${C}${BOLD}[MODULE 02/03] >> JELLYFIN SERVER (UBUNTU PROOT + FULL FFMPEG TRANSCODER)${NC}"
 echo -e "${W}----------------------------------------------------------------------------------------${NC}"
-read -p "$(echo -e "${Y}[?] Do you want to deploy Jellyfin Media Server [Port :8096]? (Y/n): ${NC}")" jf_choice
+echo -ne "${Y}[?] Do you want to deploy Jellyfin Media Server [Port :8096]? (Y/n): ${NC}"
+read jf_choice </dev/tty || jf_choice="Y"
 jf_choice=${jf_choice:-Y}
 
 if [[ "$jf_choice" =~ ^[Yy]$ ]]; then
@@ -96,7 +95,8 @@ echo ""
 echo -e "${W}----------------------------------------------------------------------------------------${NC}"
 echo -e "${C}${BOLD}[MODULE 03/03] >> SYNCTHING (PEER-TO-PEER ZERO-TRUST MESH ENGINE)${NC}"
 echo -e "${W}----------------------------------------------------------------------------------------${NC}"
-read -p "$(echo -e "${Y}[?] Do you want to deploy Syncthing Mesh Node [Port :8384]? (Y/n): ${NC}")" st_choice
+echo -ne "${Y}[?] Do you want to deploy Syncthing Mesh Node [Port :8384]? (Y/n): ${NC}"
+read st_choice </dev/tty || st_choice="Y"
 st_choice=${st_choice:-Y}
 
 if [[ "$st_choice" =~ ^[Yy]$ ]]; then
@@ -118,7 +118,7 @@ mkdir -p ~/services/filebrowser ~/.config/syncthing
 
 [ -f ~/services/filebrowser/filebrowser.db ] && nohup filebrowser -d ~/services/filebrowser/filebrowser.db > ~/services/filebrowser/filebrowser.log 2>&1 &
 command -v syncthing >/dev/null 2>&1 && nohup syncthing -no-browser -home=~/.config/syncthing > ~/.config/syncthing/syncthing.log 2>&1 &
-proot-distro list | grep -q "ubuntu (installed)" && nohup proot-distro login ubuntu --bind /data/data/com.termux/files/home/storage/shared:/media/storage -- jellyfin > ~/jellyfin.log 2>&1 &
+proot-distro list 2>/dev/null | grep -q "ubuntu (installed)" && nohup proot-distro login ubuntu --bind /data/data/com.termux/files/home/storage/shared:/media/storage -- jellyfin > ~/jellyfin.log 2>&1 &
 
 IP=$(ifconfig wlan0 2>/dev/null | grep 'inet ' | awk '{print $2}')
 [ -z "$IP" ] && IP="127.0.0.1"
@@ -143,7 +143,8 @@ echo ""
 echo -e "${G}========================================================================================${NC}"
 echo -e "${W}${BOLD}              >>> [SYSTEM ONLINE] ALL SELECTED CORES DEPLOYED! <<<                      ${NC}"
 echo -e "${G}========================================================================================${NC}"
-read -p "$(echo -e "${Y}[?] Do you want to launch all cloud servers right now? (Y/n): ${NC}")" launch_choice
+echo -ne "${Y}[?] Do you want to launch all cloud servers right now? (Y/n): ${NC}"
+read launch_choice </dev/tty || launch_choice="Y"
 launch_choice=${launch_choice:-Y}
 
 if [[ "$launch_choice" =~ ^[Yy]$ ]]; then
