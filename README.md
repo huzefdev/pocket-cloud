@@ -30,7 +30,7 @@ Run this single command inside Termux:
 
 ```bash
 curl -sL [https://raw.githubusercontent.com/huzefdev/pocket-cloud/main/install.sh](https://raw.githubusercontent.com/huzefdev/pocket-cloud/main/install.sh) | bash
-
+```bash
 
 🛠️ Manual Step-by-Step Installation
 If you prefer to install services manually, follow these steps:
