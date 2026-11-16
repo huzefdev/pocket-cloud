@@ -232,6 +232,20 @@ public class WebWorkspaceActivity extends Activity {
             }
 
             @Override
+            public void onReceivedError(final WebView view, int errorCode, String description, final String failingUrl) {
+                if (isMediaMode && failingUrl != null && failingUrl.contains(":8096")) {
+                    String warmingHtml = "<html><body style='margin:0;background:#0B0B0D;color:#F8FAFC;font-family:system-ui,sans-serif;display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;text-align:center;padding:24px;'>"
+                            + "<div style='width:38px;height:38px;border:3px solid rgba(234,88,12,0.25);border-top-color:#EA580C;border-radius:50%;animation:spin 1s linear infinite;'></div>"
+                            + "<style>@keyframes spin{to{transform:rotate(360deg);}}</style>"
+                            + "<h3 style='margin:18px 0 6px 0;font-size:17px;'>Starting Official Jellyfin Engine...</h3>"
+                            + "<p style='margin:0;color:#9CA3AF;font-size:12px;'>Initializing .NET Kestrel &amp; SQLite database on :8096.<br/>Auto-connecting in 3 seconds...</p>"
+                            + "<script>setTimeout(function(){location.replace(" + JSONObject.quote(failingUrl) + ");},3000);</script>"
+                            + "</body></html>";
+                    view.loadDataWithBaseURL(null, warmingHtml, "text/html", "utf-8", null);
+                }
+            }
+
+            @Override
             public void onPageFinished(WebView view, String url) {
                 super.onPageFinished(view, url);
                 if (desktopModeEnabled) {

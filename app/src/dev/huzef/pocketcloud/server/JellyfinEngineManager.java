@@ -61,9 +61,10 @@ public class JellyfinEngineManager {
 
     private boolean ensureGlibcRootfs(File dir, InstallProgressListener listener) {
         File rootfs = new File(dir, "rootfs");
-        File ldSo = new File(rootfs, "lib/ld-linux-aarch64.so.1");
-        File usrLdSo = new File(rootfs, "usr/lib/ld-linux-aarch64.so.1");
-        if (ldSo.exists() || usrLdSo.exists()) return true;
+        File ld1 = new File(rootfs, "lib/ld-linux-aarch64.so.1");
+        File ld2 = new File(rootfs, "usr/lib/ld-linux-aarch64.so.1");
+        File ld3 = new File(rootfs, "usr/lib/aarch64-linux-gnu/ld-linux-aarch64.so.1");
+        if (ld1.exists() || ld2.exists() || ld3.exists()) return true;
 
         try {
             rootfs.mkdirs();
@@ -108,9 +109,9 @@ public class JellyfinEngineManager {
             long size = parseTarOctal(header, 124, 12);
             byte typeFlag = header[156];
 
-            boolean needed = name.startsWith("lib/") || name.startsWith("usr/lib/")
-                    || name.startsWith("etc/") || name.startsWith("bin/") || name.startsWith("usr/bin/")
-                    || name.equals("lib") || name.equals("usr") || name.equals("usr/lib");
+            boolean needed = name.startsWith("lib") || name.startsWith("usr/lib")
+                    || name.startsWith("etc/") || name.startsWith("bin") || name.startsWith("usr/bin")
+                    || name.equals("usr");
 
             if (needed && !name.isEmpty()) {
                 File outFile = new File(destDir, name);
@@ -243,9 +244,15 @@ public class JellyfinEngineManager {
             pb.environment().put("HOME", "/jf_engine");
             pb.environment().put("PATH", "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin");
             pb.environment().put("TMPDIR", tmpDir.getAbsolutePath());
+            File loaderSo = new File(context.getApplicationInfo().nativeLibraryDir, "libproot_loader.so");
+            if (loaderSo.exists()) {
+                pb.environment().put("PROOT_LOADER", loaderSo.getAbsolutePath());
+            }
             pb.environment().put("PROOT_TMP_DIR", tmpDir.getAbsolutePath());
             pb.environment().put("PROOT_NO_SECCOMP", "1");
             pb.environment().put("DOTNET_SYSTEM_GLOBALIZATION_INVARIANT", "1");
+            pb.environment().put("DOTNET_EnableWriteXorExecute", "0");
+            pb.environment().put("LD_LIBRARY_PATH", "/usr/lib/aarch64-linux-gnu:/lib/aarch64-linux-gnu:/usr/lib:/lib:/jf_engine");
             pb.environment().put("JELLYFIN_PublishedServerUrl", "http://" + HardwareTelemetry.detectLocalIpv4() + ":8096");
             pb.redirectErrorStream(true);
 
