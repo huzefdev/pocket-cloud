@@ -146,7 +146,7 @@ public class WebWorkspaceActivity extends Activity {
                 applyDesktopViewportSettings(true);
                 Toast.makeText(
                         WebWorkspaceActivity.this,
-                        desktopModeEnabled ? "PC Desktop View Enabled (1280px)" : "Mobile View Restored",
+                        desktopModeEnabled ? "PC Desktop Mode ON (1-Tap Open Ready)" : "Mobile View Restored",
                         Toast.LENGTH_SHORT
                 ).show();
             }
@@ -214,8 +214,9 @@ public class WebWorkspaceActivity extends Activity {
         ws.setDatabaseEnabled(true);
         ws.setAllowFileAccess(true);
         ws.setMediaPlaybackRequiresUserGesture(false);
-        ws.setSupportZoom(true);
-        ws.setBuiltInZoomControls(true);
+        // Disable WebView double-tap zoom hijack so clicks & double-clicks go straight to the web app
+        ws.setSupportZoom(false);
+        ws.setBuiltInZoomControls(false);
         ws.setDisplayZoomControls(false);
 
         applyDesktopViewportSettings(false);
@@ -231,7 +232,7 @@ public class WebWorkspaceActivity extends Activity {
             public void onPageFinished(WebView view, String url) {
                 super.onPageFinished(view, url);
                 if (desktopModeEnabled) {
-                    injectDesktopViewportScript(view);
+                    injectDesktopViewportAndTouchBridge(view);
                 }
                 if (isFileBrowserMode && VaultConfigManager.isVaultConfigured(WebWorkspaceActivity.this) && !autoLoginAttempted) {
                     autoLoginAttempted = true;
@@ -282,7 +283,7 @@ public class WebWorkspaceActivity extends Activity {
             ws.setUserAgentString(UA_DESKTOP);
             ws.setUseWideViewPort(true);
             ws.setLoadWithOverviewMode(true);
-            webView.setInitialScale(65);
+            webView.setInitialScale(85);
         } else {
             ws.setUserAgentString(UA_MOBILE);
             ws.setUseWideViewPort(true);
@@ -307,11 +308,31 @@ public class WebWorkspaceActivity extends Activity {
         ));
     }
 
-    private void injectDesktopViewportScript(WebView view) {
+    private void injectDesktopViewportAndTouchBridge(WebView view) {
+        // Forces 1120px desktop layout + bridges single-tap on FileBrowser desktop items to dblclick so folders open on 1 tap
         String js = "(function(){"
                 + "var meta=document.querySelector('meta[name=\"viewport\"]');"
                 + "if(!meta){meta=document.createElement('meta');meta.name='viewport';document.head.appendChild(meta);}"
-                + "meta.content='width=1280, initial-scale=0.62, user-scalable=yes';"
+                + "meta.content='width=1120, initial-scale=0.85, maximum-scale=1.0, user-scalable=no';"
+                + "if(!window.__pcTouchBridge){"
+                + "window.__pcTouchBridge=true;"
+                + "var sx=0,sy=0;"
+                + "document.addEventListener('touchstart',function(e){"
+                + "if(e.touches.length===1){sx=e.touches[0].clientX;sy=e.touches[0].clientY;}"
+                + "},{passive:true,capture:true});"
+                + "document.addEventListener('touchend',function(e){"
+                + "if(e.changedTouches.length!==1)return;"
+                + "var dx=Math.abs(e.changedTouches[0].clientX-sx);"
+                + "var dy=Math.abs(e.changedTouches[0].clientY-sy);"
+                + "if(dx>12||dy>12)return;"
+                + "var item=e.target.closest('.item');"
+                + "if(item && !e.target.closest('button,input,a,[role=\"button\"]')){"
+                + "setTimeout(function(){"
+                + "item.dispatchEvent(new MouseEvent('dblclick',{bubbles:true,cancelable:true,view:window}));"
+                + "},40);"
+                + "}"
+                + "},{passive:true,capture:true});"
+                + "}"
                 + "})();";
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
             view.evaluateJavascript(js, null);
@@ -510,7 +531,7 @@ public class WebWorkspaceActivity extends Activity {
         String msg = "LAN Access URL (PC / Laptop Browser):\n" + lanUrl
                 + "\n\nUsername: " + user
                 + "\nPassword: " + (pass.isEmpty() ? "(Not set yet)" : pass)
-                + "\n\nTip: Tap 'PC' in top toolbar anytime to toggle full Desktop view.";
+                + "\n\nTip: PC mode supports 1-tap folder opening on touchscreens.";
 
         new AlertDialog.Builder(this)
                 .setTitle("FileBrowser Vault Key")
