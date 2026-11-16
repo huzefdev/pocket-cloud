@@ -64,6 +64,29 @@ public class JellyfinEngineManager {
         }
     }
 
+    private File resolveProotLoader(File engineDir) {
+        File nativeLoader = new File(context.getApplicationInfo().nativeLibraryDir, "libproot_loader.so");
+        if (nativeLoader.exists() && nativeLoader.canExecute()) {
+            return nativeLoader;
+        }
+        File localLoader = new File(engineDir, "proot_loader");
+        if (!localLoader.exists() || localLoader.length() < 1024) {
+            try {
+                InputStream is = context.getAssets().open("proot_loader");
+                FileOutputStream fos = new FileOutputStream(localLoader);
+                byte[] buf = new byte[8192];
+                int r;
+                while ((r = is.read(buf)) != -1) fos.write(buf, 0, r);
+                fos.close();
+                is.close();
+            } catch (Exception e) {
+                PocketCloudService.appendLog("[8096] Loader asset extract err: " + e.getMessage());
+            }
+        }
+        localLoader.setExecutable(true, false);
+        return localLoader;
+    }
+
     private void ensureLinkerSymlink(File rootfs) {
         try {
             File libDir = new File(rootfs, "lib");
@@ -277,9 +300,9 @@ public class JellyfinEngineManager {
             pb.environment().put("HOME", "/jf_engine");
             pb.environment().put("PATH", "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin");
             pb.environment().put("TMPDIR", tmpDir.getAbsolutePath());
-            File loaderSo = new File(context.getApplicationInfo().nativeLibraryDir, "libproot_loader.so");
-            if (loaderSo.exists()) {
-                pb.environment().put("PROOT_LOADER", loaderSo.getAbsolutePath());
+            File loaderFile = resolveProotLoader(dir);
+            if (loaderFile != null && loaderFile.exists()) {
+                pb.environment().put("PROOT_LOADER", loaderFile.getAbsolutePath());
             }
             pb.environment().put("PROOT_TMP_DIR", tmpDir.getAbsolutePath());
             pb.environment().put("PROOT_NO_SECCOMP", "1");
@@ -291,6 +314,8 @@ public class JellyfinEngineManager {
             String nativeDir = context.getApplicationInfo().nativeLibraryDir;
             pb.environment().put("LD_LIBRARY_PATH", nativeDir + ":/usr/lib/aarch64-linux-gnu:/lib/aarch64-linux-gnu:/usr/lib:/lib:/jf_engine");
             pb.environment().put("JELLYFIN_PublishedServerUrl", "http://" + HardwareTelemetry.detectLocalIpv4() + ":8096");
+            pb.environment().put("ASPNETCORE_URLS", "http://0.0.0.0:8096");
+            pb.environment().put("JELLYFIN_WEB_OPT", "true");
             pb.redirectErrorStream(true);
 
             jellyfinProcess = pb.start();
