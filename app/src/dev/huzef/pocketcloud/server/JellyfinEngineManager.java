@@ -87,26 +87,48 @@ public class JellyfinEngineManager {
         return localLoader;
     }
 
+    private File findLdLinuxInRootfs(File rootfs) {
+        String[] candidates = new String[]{
+                "lib/ld-linux-aarch64.so.1",
+                "usr/lib/ld-linux-aarch64.so.1",
+                "usr/lib/aarch64-linux-gnu/ld-linux-aarch64.so.1",
+                "lib/aarch64-linux-gnu/ld-linux-aarch64.so.1"
+        };
+        for (String c : candidates) {
+            File f = new File(rootfs, c);
+            if (f.exists() && f.length() > 10000) return f;
+        }
+        return findBinaryRecursive(rootfs, "ld-linux-aarch64.so.1", 4);
+    }
+
     private void ensureLinkerSymlink(File rootfs) {
         try {
-            File libDir = new File(rootfs, "lib");
-            libDir.mkdirs();
-            File targetLd = new File(libDir, "ld-linux-aarch64.so.1");
-            if (!targetLd.exists()) {
-                File gnuLd = new File(rootfs, "usr/lib/aarch64-linux-gnu/ld-linux-aarch64.so.1");
-                if (gnuLd.exists() && android.os.Build.VERSION.SDK_INT >= 26) {
-                    java.nio.file.Files.createSymbolicLink(targetLd.toPath(), java.nio.file.Paths.get("../usr/lib/aarch64-linux-gnu/ld-linux-aarch64.so.1"));
+            File foundLd = findLdLinuxInRootfs(rootfs);
+            if (foundLd != null && foundLd.exists()) {
+                File libDir = new File(rootfs, "lib");
+                libDir.mkdirs();
+                File targetLd = new File(libDir, "ld-linux-aarch64.so.1");
+                if (!targetLd.exists() || targetLd.length() < 10000) {
+                    if (targetLd.exists()) targetLd.delete();
+                    FileInputStream fis = new FileInputStream(foundLd);
+                    FileOutputStream fos = new FileOutputStream(targetLd);
+                    byte[] buf = new byte[16384];
+                    int r;
+                    while ((r = fis.read(buf)) != -1) fos.write(buf, 0, r);
+                    fos.close();
+                    fis.close();
+                    targetLd.setExecutable(true, false);
                 }
+                PocketCloudService.appendLog("[8096] Glibc dynamic linker ready: " + targetLd.length() + " bytes");
             }
-        } catch (Exception ignored) {}
+        } catch (Exception e) {
+            PocketCloudService.appendLog("[8096] Linker copy err: " + e.getMessage());
+        }
     }
 
     private boolean ensureGlibcRootfs(File dir, InstallProgressListener listener) {
         File rootfs = new File(dir, "rootfs");
-        File ld1 = new File(rootfs, "lib/ld-linux-aarch64.so.1");
-        File ld2 = new File(rootfs, "usr/lib/ld-linux-aarch64.so.1");
-        File ld3 = new File(rootfs, "usr/lib/aarch64-linux-gnu/ld-linux-aarch64.so.1");
-        if (ld1.exists() || ld2.exists() || ld3.exists()) {
+        if (findLdLinuxInRootfs(rootfs) != null) {
             ensureLinkerSymlink(rootfs);
             return true;
         }
@@ -262,6 +284,10 @@ public class JellyfinEngineManager {
                 cmd.add("/jf_engine");
 
                 String relJf = jfBin.getAbsolutePath().replace(dir.getAbsolutePath(), "/jf_engine");
+                String relJfDir = jfBin.getParentFile().getAbsolutePath().replace(dir.getAbsolutePath(), "/jf_engine");
+                cmd.add("/lib/ld-linux-aarch64.so.1");
+                cmd.add("--library-path");
+                cmd.add("/usr/lib/aarch64-linux-gnu:/lib/aarch64-linux-gnu:/usr/lib:/lib:" + relJfDir);
                 cmd.add(relJf);
                 cmd.add("--datadir");
                 cmd.add("/jf_engine/data");
