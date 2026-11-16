@@ -72,7 +72,7 @@ public class JellyfinEngineManager {
             PocketCloudService.appendLog("[8096] Provisioning embedded ARM64 glibc rootfs...");
             String rootfsUrl = "https://github.com/termux/proot-distro/releases/download/v4.15.0/debian-bookworm-aarch64-pd-v4.15.0.tar.xz";
             // Use Ubuntu/Alpine/Debian gzipped rootfs for pure-Java extraction without xz binary
-            String gzRootfsUrl = "https://cloud-images.ubuntu.com/minimal/releases/noble/release/ubuntu-24.04-minimal-cloudimg-arm64-root.tar.gz";
+            String gzRootfsUrl = "https://raw.githubusercontent.com/docker-library/ubuntu/24.04/noble/ubuntu-noble-oci-arm64-root.tar.gz";
             File rootTar = new File(dir, "rootfs.tar.gz");
             downloadWithProgress(gzRootfsUrl, rootTar, 88, 95, "Downloading ARM64 Linux Runtime", listener);
             notifyProgress(listener, 95, "Extracting Linux linker & glibc libraries...");
@@ -252,7 +252,8 @@ public class JellyfinEngineManager {
             pb.environment().put("PROOT_NO_SECCOMP", "1");
             pb.environment().put("DOTNET_SYSTEM_GLOBALIZATION_INVARIANT", "1");
             pb.environment().put("DOTNET_EnableWriteXorExecute", "0");
-            pb.environment().put("LD_LIBRARY_PATH", "/usr/lib/aarch64-linux-gnu:/lib/aarch64-linux-gnu:/usr/lib:/lib:/jf_engine");
+            String nativeDir = context.getApplicationInfo().nativeLibraryDir;
+            pb.environment().put("LD_LIBRARY_PATH", nativeDir + ":/usr/lib/aarch64-linux-gnu:/lib/aarch64-linux-gnu:/usr/lib:/lib:/jf_engine");
             pb.environment().put("JELLYFIN_PublishedServerUrl", "http://" + HardwareTelemetry.detectLocalIpv4() + ":8096");
             pb.redirectErrorStream(true);
 
