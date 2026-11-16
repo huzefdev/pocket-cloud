@@ -300,9 +300,11 @@ public class JellyfinEngineManager {
             pb.environment().put("HOME", "/jf_engine");
             pb.environment().put("PATH", "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin");
             pb.environment().put("TMPDIR", tmpDir.getAbsolutePath());
-            File loaderFile = resolveProotLoader(dir);
-            if (loaderFile != null && loaderFile.exists()) {
+            File loaderFile = new File(context.getApplicationInfo().nativeLibraryDir, "libproot_loader.so");
+            PocketCloudService.appendLog("[8096] Loader path=" + loaderFile.getAbsolutePath() + " exists=" + loaderFile.exists());
+            if (loaderFile.exists()) {
                 pb.environment().put("PROOT_LOADER", loaderFile.getAbsolutePath());
+                pb.environment().put("PROOT_LOADER_32", loaderFile.getAbsolutePath());
             }
             pb.environment().put("PROOT_TMP_DIR", tmpDir.getAbsolutePath());
             pb.environment().put("PROOT_NO_SECCOMP", "1");
