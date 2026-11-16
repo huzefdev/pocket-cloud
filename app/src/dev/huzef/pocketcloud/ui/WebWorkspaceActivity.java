@@ -476,7 +476,38 @@ public class WebWorkspaceActivity extends Activity {
                 : new JellyfinEngineManager(this);
 
         final TextView btnAction = new TextView(this);
-        btnAction.setText(mgr.isInstalled() ? "Boot Official Jellyfin Server →" : "Install & Start Real Jellyfin →");
+        btnAction.setText(mgr.isInstalling() ? "Installing Jellyfin Engine..." : (mgr.isInstalled() ? "Boot Official Jellyfin Server →" : "Install & Start Real Jellyfin →"));
+        if (mgr.isInstalling()) {
+            btnAction.setEnabled(false);
+            installBar.setVisibility(View.VISIBLE);
+            mgr.attachListener(new JellyfinEngineManager.InstallProgressListener() {
+                @Override
+                public void onProgress(final int percent, final String statusText) {
+                    new Handler(Looper.getMainLooper()).post(new Runnable() {
+                        @Override
+                        public void run() {
+                            installBar.setIndeterminate(false);
+                            installBar.setProgress(percent);
+                            tvStatus.setText(statusText);
+                        }
+                    });
+                }
+                @Override
+                public void onComplete(final boolean success, final String message) {
+                    new Handler(Looper.getMainLooper()).post(new Runnable() {
+                        @Override
+                        public void run() {
+                            tvStatus.setText(message);
+                            if (success && setupWizardOverlay != null) {
+                                contentStack.removeView(setupWizardOverlay);
+                                setupWizardOverlay = null;
+                                if (targetUrl != null) webView.loadUrl(targetUrl);
+                            }
+                        }
+                    });
+                }
+            });
+        }
         btnAction.setTextColor(GlassTheme.TEXT_PRIMARY);
         btnAction.setTextSize(15f);
         btnAction.setTypeface(Typeface.DEFAULT_BOLD);
@@ -498,7 +529,7 @@ public class WebWorkspaceActivity extends Activity {
                         @Override
                         public void run() {
                             mgr.startIfInstalled();
-                            for (int i = 0; i < 24; i++) {
+                            for (int i = 0; i < 80; i++) {
                                 if (HardwareTelemetry.pingLocalPort(8096, 200) > 0) break;
                                 try { Thread.sleep(500L); } catch (Exception ignored) {}
                             }

@@ -27,6 +27,9 @@ public class JellyfinEngineManager {
     private final Context context;
     private Process jellyfinProcess;
     private volatile boolean installing = false;
+    private volatile int currentPercent = 0;
+    private volatile String currentStatus = "";
+    private volatile InstallProgressListener activeListener;
 
     public JellyfinEngineManager(Context context) {
         this.context = context.getApplicationContext();
@@ -40,12 +43,20 @@ public class JellyfinEngineManager {
 
     public boolean isInstalled() {
         File dir = getEngineDir();
-        File bin = findBinaryRecursive(dir, "jellyfin", 2);
-        return bin != null && bin.exists() && bin.length() > 1024 * 1024;
+        File flag = new File(dir, ".installed_ok");
+        File bin = findBinaryRecursive(dir, "jellyfin", 4);
+        return (flag.exists() || (bin != null && bin.exists() && bin.length() > 1024 * 1024)) && bin != null;
     }
 
     public boolean isInstalling() {
         return installing;
+    }
+
+    public void attachListener(InstallProgressListener listener) {
+        this.activeListener = listener;
+        if (installing && listener != null) {
+            listener.onProgress(currentPercent, currentStatus);
+        }
     }
 
     public synchronized boolean startIfInstalled() {
@@ -54,7 +65,7 @@ public class JellyfinEngineManager {
             return true;
         }
         File dir = getEngineDir();
-        File jfBin = findBinaryRecursive(dir, "jellyfin", 2);
+        File jfBin = findBinaryRecursive(dir, "jellyfin", 4);
         if (jfBin == null || !jfBin.exists()) {
             PocketCloudService.appendLog("[8096] Jellyfin engine awaiting 1-tap setup inside Jellyfin tab.");
             return false;
@@ -72,8 +83,8 @@ public class JellyfinEngineManager {
         logDir.mkdirs();
         tmpDir.mkdirs();
 
-        File webDir = findWebDirRecursive(dir, 2);
-        File ffmpegBin = findBinaryRecursive(dir, "ffmpeg", 2);
+        File webDir = findWebDirRecursive(dir, 4);
+        File ffmpegBin = findBinaryRecursive(dir, "ffmpeg", 4);
         String sdcardPath = Environment.getExternalStorageDirectory().getAbsolutePath();
 
         try {
@@ -130,7 +141,11 @@ public class JellyfinEngineManager {
     }
 
     public void installOfficialJellyfinAsync(final InstallProgressListener listener) {
-        if (installing) return;
+        this.activeListener = listener;
+        if (installing) {
+            if (listener != null) listener.onProgress(currentPercent, currentStatus);
+            return;
+        }
         installing = true;
 
         new Thread(new Runnable() {
@@ -150,7 +165,7 @@ public class JellyfinEngineManager {
                     archive.delete();
 
                     // Also fetch static ARM64 ffmpeg for hardware/software transcoding
-                    File existingFfmpeg = findBinaryRecursive(dir, "ffmpeg", 2);
+                    File existingFfmpeg = findBinaryRecursive(dir, "ffmpeg", 4);
                     if (existingFfmpeg == null) {
                         try {
                             notifyProgress(listener, 82, "Fetching static ARM64 FFmpeg transcoder...");
@@ -163,26 +178,31 @@ public class JellyfinEngineManager {
                         }
                     }
 
-                    File jfBin = findBinaryRecursive(dir, "jellyfin", 2);
+                    File jfBin = findBinaryRecursive(dir, "jellyfin", 4);
                     if (jfBin == null || !jfBin.exists()) {
                         installing = false;
                         if (listener != null) listener.onComplete(false, "Could not locate jellyfin binary after extraction.");
                         return;
                     }
                     jfBin.setExecutable(true, false);
+                    try { new File(dir, ".installed_ok").createNewFile(); } catch (Exception ignored) {}
 
-                    notifyProgress(listener, 96, "Booting Official Jellyfin Server on :8096...");
+                    notifyProgress(listener, 96, "Warming up Jellyfin .NET Engine (:8096)...");
                     boolean booted = startIfInstalled();
 
-                    // Wait up to 12 seconds for .NET Kestrel server to bind port 8096
-                    for (int i = 0; i < 24; i++) {
-                        if (HardwareTelemetry.pingLocalPort(8096, 200) > 0) break;
+                    boolean portReady = false;
+                    for (int i = 0; i < 80; i++) {
+                        if (HardwareTelemetry.pingLocalPort(8096, 200) > 0) {
+                            portReady = true;
+                            break;
+                        }
                         Thread.sleep(500L);
                     }
 
                     installing = false;
-                    if (listener != null) {
-                        listener.onComplete(booted, booted ? "Official Jellyfin Server is LIVE!" : "Jellyfin extracted; starting background service...");
+                    InstallProgressListener targetL = activeListener != null ? activeListener : listener;
+                    if (targetL != null) {
+                        targetL.onComplete(booted && portReady, portReady ? "Official Jellyfin Server is LIVE!" : "Jellyfin booted — tap Refresh in 5s if still warming up.");
                     }
                 } catch (Exception e) {
                     installing = false;
@@ -446,6 +466,9 @@ public class JellyfinEngineManager {
     }
 
     private void notifyProgress(InstallProgressListener l, int pct, String msg) {
-        if (l != null) l.onProgress(pct, msg);
+        currentPercent = pct;
+        currentStatus = msg;
+        InstallProgressListener target = activeListener != null ? activeListener : l;
+        if (target != null) target.onProgress(pct, msg);
     }
 }
