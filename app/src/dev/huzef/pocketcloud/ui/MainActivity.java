@@ -145,8 +145,8 @@ public class MainActivity extends Activity {
         ));
         serviceNodes.add(new ServiceNode(
                 "pocketmedia",
-                "PocketMedia Server",
-                "Zero-PRoot Cinema & Audio Streamer",
+                "Jellyfin Cinema Server",
+                "HD Posters, Resume & LAN TV Streaming",
                 "PORT :8096",
                 8096,
                 "Direct HTTP Range Stream"

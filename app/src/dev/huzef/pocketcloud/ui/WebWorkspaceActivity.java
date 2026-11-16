@@ -60,6 +60,7 @@ public class WebWorkspaceActivity extends Activity {
     private String targetUrl;
     private String fallbackHint;
     private boolean isFileBrowserMode = false;
+    private boolean isMediaMode = false;
     private boolean desktopModeEnabled = false;
     private boolean autoLoginAttempted = false;
 
@@ -77,6 +78,7 @@ public class WebWorkspaceActivity extends Activity {
         targetUrl = getIntent().getStringExtra(EXTRA_URL);
         fallbackHint = getIntent().getStringExtra(EXTRA_HINT);
         isFileBrowserMode = targetUrl != null && targetUrl.contains(":8080");
+        isMediaMode = targetUrl != null && targetUrl.contains(":8096");
 
         SharedPreferences prefs = getSharedPreferences("pocketcloud_prefs", MODE_PRIVATE);
         desktopModeEnabled = prefs.getBoolean(PREF_DESKTOP_MODE, false);
@@ -153,7 +155,7 @@ public class WebWorkspaceActivity extends Activity {
         });
         topBar.addView(btnDesktopToggle);
 
-        if (isFileBrowserMode) {
+        if (isFileBrowserMode || isMediaMode) {
             TextView btnVaultKey = new TextView(this);
             btnVaultKey.setText("KEY");
             btnVaultKey.setTextColor(GlassTheme.TEXT_PRIMARY);
@@ -264,7 +266,7 @@ public class WebWorkspaceActivity extends Activity {
 
         contentStack.addView(webView);
 
-        if (isFileBrowserMode && !VaultConfigManager.isVaultConfigured(this)) {
+        if ((isFileBrowserMode && !VaultConfigManager.isVaultConfigured(this)) || (isMediaMode && !VaultConfigManager.isMediaConfigured(this))) {
             setupWizardOverlay = buildBeginnerVaultSetupCard();
             contentStack.addView(setupWizardOverlay);
             GlassTheme.animateGlassEntry(setupWizardOverlay);
@@ -340,9 +342,10 @@ public class WebWorkspaceActivity extends Activity {
     }
 
     private void updateSubHeaderText() {
-        if (isFileBrowserMode && VaultConfigManager.isVaultConfigured(this)) {
+        if ((isFileBrowserMode && VaultConfigManager.isVaultConfigured(this)) || (isMediaMode && VaultConfigManager.isMediaConfigured(this))) {
             String lanIp = HardwareTelemetry.detectLocalIpv4();
-            tvSubHeader.setText("http://" + lanIp + ":8080 • " + VaultConfigManager.getUsername(this));
+            int p = isMediaMode ? 8096 : 8080;
+            tvSubHeader.setText("http://" + lanIp + ":" + p + " • " + VaultConfigManager.getUsername(this));
         } else {
             tvSubHeader.setText((targetUrl != null ? targetUrl : "") + (fallbackHint != null && !fallbackHint.isEmpty() ? " • " + fallbackHint : ""));
         }
@@ -371,7 +374,7 @@ public class WebWorkspaceActivity extends Activity {
         card.addView(stepPill);
 
         TextView heading = new TextView(this);
-        heading.setText("Create Your Cloud Password");
+        heading.setText(isMediaMode ? "Setup Jellyfin Cinema" : "Create Your Cloud Password");
         heading.setTextColor(GlassTheme.TEXT_PRIMARY);
         heading.setTextSize(22f);
         heading.setTypeface(Typeface.DEFAULT_BOLD);
@@ -463,6 +466,7 @@ public class WebWorkspaceActivity extends Activity {
                 btnCreate.setText("Initializing Vault Database...");
 
                 VaultConfigManager.saveCredentials(WebWorkspaceActivity.this, u, p);
+                if (isMediaMode) VaultConfigManager.setMediaConfigured(WebWorkspaceActivity.this, true);
                 updateSubHeaderText();
 
                 Intent svc = new Intent(WebWorkspaceActivity.this, PocketCloudService.class);
@@ -526,7 +530,7 @@ public class WebWorkspaceActivity extends Activity {
     private void showSavedVaultCredentialsDialog() {
         final String user = VaultConfigManager.getUsername(this);
         final String pass = VaultConfigManager.getPassword(this);
-        final String lanUrl = "http://" + HardwareTelemetry.detectLocalIpv4() + ":8080";
+        final String lanUrl = "http://" + HardwareTelemetry.detectLocalIpv4() + (isMediaMode ? ":8096" : ":8080");
 
         String msg = "LAN Access URL (PC / Laptop Browser):\n" + lanUrl
                 + "\n\nUsername: " + user
