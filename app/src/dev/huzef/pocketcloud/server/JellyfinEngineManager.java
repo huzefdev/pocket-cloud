@@ -109,9 +109,7 @@ public class JellyfinEngineManager {
             long size = parseTarOctal(header, 124, 12);
             byte typeFlag = header[156];
 
-            boolean needed = name.startsWith("lib") || name.startsWith("usr/lib")
-                    || name.startsWith("etc/") || name.startsWith("bin") || name.startsWith("usr/bin")
-                    || name.equals("usr");
+            boolean needed = name.startsWith("lib") || name.startsWith("usr/lib") || name.equals("usr");
 
             if (needed && !name.isEmpty()) {
                 File outFile = new File(destDir, name);
