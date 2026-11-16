@@ -7,6 +7,7 @@ import android.content.ClipboardManager;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.net.Uri;
@@ -44,20 +45,29 @@ public class WebWorkspaceActivity extends Activity {
     public static final String EXTRA_URL = "extra_url";
     public static final String EXTRA_HINT = "extra_hint";
     private static final int FILE_CHOOSER_REQ = 9001;
+    private static final String PREF_DESKTOP_MODE = "pref_universal_desktop_mode";
+
+    private static final String UA_MOBILE = "Mozilla/5.0 (Linux; Android 14; Pixel 8 Pro) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Mobile Safari/537.36";
+    private static final String UA_DESKTOP = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36";
 
     private FrameLayout contentStack;
     private WebView webView;
     private ProgressBar progressBar;
     private TextView tvSubHeader;
+    private TextView btnDesktopToggle;
     private View setupWizardOverlay;
     private ValueCallback<Uri[]> filePathCallback;
     private String targetUrl;
+    private String fallbackHint;
     private boolean isFileBrowserMode = false;
+    private boolean desktopModeEnabled = false;
     private boolean autoLoginAttempted = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out);
+
         Window w = getWindow();
         w.addFlags(WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS);
         w.setStatusBarColor(GlassTheme.BG_VOID);
@@ -65,8 +75,11 @@ public class WebWorkspaceActivity extends Activity {
 
         final String title = getIntent().getStringExtra(EXTRA_TITLE);
         targetUrl = getIntent().getStringExtra(EXTRA_URL);
-        final String hint = getIntent().getStringExtra(EXTRA_HINT);
+        fallbackHint = getIntent().getStringExtra(EXTRA_HINT);
         isFileBrowserMode = targetUrl != null && targetUrl.contains(":8080");
+
+        SharedPreferences prefs = getSharedPreferences("pocketcloud_prefs", MODE_PRIVATE);
+        desktopModeEnabled = prefs.getBoolean(PREF_DESKTOP_MODE, false);
 
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
@@ -76,7 +89,7 @@ public class WebWorkspaceActivity extends Activity {
         LinearLayout topBar = new LinearLayout(this);
         topBar.setOrientation(LinearLayout.HORIZONTAL);
         topBar.setGravity(Gravity.CENTER_VERTICAL);
-        topBar.setPadding(GlassTheme.dp(this, 14), GlassTheme.dp(this, 12), GlassTheme.dp(this, 14), GlassTheme.dp(this, 12));
+        topBar.setPadding(GlassTheme.dp(this, 12), GlassTheme.dp(this, 10), GlassTheme.dp(this, 12), GlassTheme.dp(this, 10));
         topBar.setBackgroundColor(Color.parseColor("#121216"));
 
         TextView btnBack = new TextView(this);
@@ -85,7 +98,8 @@ public class WebWorkspaceActivity extends Activity {
         btnBack.setTextSize(18f);
         btnBack.setGravity(Gravity.CENTER);
         btnBack.setBackground(GlassTheme.createCircleBadge(this, GlassTheme.BG_CARD_ELEVATED, GlassTheme.BORDER_SUBTLE));
-        btnBack.setLayoutParams(new LinearLayout.LayoutParams(GlassTheme.dp(this, 38), GlassTheme.dp(this, 38)));
+        btnBack.setLayoutParams(new LinearLayout.LayoutParams(GlassTheme.dp(this, 36), GlassTheme.dp(this, 36)));
+        GlassTheme.attachSpringPress(btnBack);
         btnBack.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
@@ -97,23 +111,47 @@ public class WebWorkspaceActivity extends Activity {
         LinearLayout titleCol = new LinearLayout(this);
         titleCol.setOrientation(LinearLayout.VERTICAL);
         LinearLayout.LayoutParams titleLp = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
-        titleLp.leftMargin = GlassTheme.dp(this, 12);
+        titleLp.leftMargin = GlassTheme.dp(this, 10);
         titleCol.setLayoutParams(titleLp);
 
         TextView tvTitle = new TextView(this);
         tvTitle.setText(title != null ? title : "Service Workspace");
         tvTitle.setTextColor(GlassTheme.TEXT_PRIMARY);
-        tvTitle.setTextSize(15f);
+        tvTitle.setTextSize(14f);
         tvTitle.setTypeface(Typeface.DEFAULT_BOLD);
         titleCol.addView(tvTitle);
 
         tvSubHeader = new TextView(this);
-        updateSubHeaderText(hint);
+        updateSubHeaderText();
         tvSubHeader.setTextColor(GlassTheme.ACCENT_AMBER_GLOW);
-        tvSubHeader.setTextSize(11f);
+        tvSubHeader.setTextSize(10f);
         tvSubHeader.setTypeface(Typeface.MONOSPACE);
         titleCol.addView(tvSubHeader);
         topBar.addView(titleCol);
+
+        // Universal PC Desktop Mode Pill (Works across :8080 FileBrowser, :8096 Media, :8384 Syncthing)
+        btnDesktopToggle = new TextView(this);
+        btnDesktopToggle.setTextSize(11f);
+        btnDesktopToggle.setTypeface(Typeface.MONOSPACE);
+        btnDesktopToggle.setPadding(GlassTheme.dp(this, 10), GlassTheme.dp(this, 7), GlassTheme.dp(this, 10), GlassTheme.dp(this, 7));
+        GlassTheme.attachSpringPress(btnDesktopToggle);
+        btnDesktopToggle.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                desktopModeEnabled = !desktopModeEnabled;
+                getSharedPreferences("pocketcloud_prefs", MODE_PRIVATE)
+                        .edit()
+                        .putBoolean(PREF_DESKTOP_MODE, desktopModeEnabled)
+                        .apply();
+                applyDesktopViewportSettings(true);
+                Toast.makeText(
+                        WebWorkspaceActivity.this,
+                        desktopModeEnabled ? "PC Desktop View Enabled (1280px)" : "Mobile View Restored",
+                        Toast.LENGTH_SHORT
+                ).show();
+            }
+        });
+        topBar.addView(btnDesktopToggle);
 
         if (isFileBrowserMode) {
             TextView btnVaultKey = new TextView(this);
@@ -121,8 +159,12 @@ public class WebWorkspaceActivity extends Activity {
             btnVaultKey.setTextColor(GlassTheme.TEXT_PRIMARY);
             btnVaultKey.setTextSize(11f);
             btnVaultKey.setTypeface(Typeface.MONOSPACE);
-            btnVaultKey.setPadding(GlassTheme.dp(this, 11), GlassTheme.dp(this, 7), GlassTheme.dp(this, 11), GlassTheme.dp(this, 7));
+            btnVaultKey.setPadding(GlassTheme.dp(this, 10), GlassTheme.dp(this, 7), GlassTheme.dp(this, 10), GlassTheme.dp(this, 7));
             btnVaultKey.setBackground(GlassTheme.createPillButton(this, GlassTheme.ACCENT_AMBER_SOFT, GlassTheme.BORDER_WARM));
+            LinearLayout.LayoutParams keyLp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+            keyLp.leftMargin = GlassTheme.dp(this, 6);
+            btnVaultKey.setLayoutParams(keyLp);
+            GlassTheme.attachSpringPress(btnVaultKey);
             btnVaultKey.setOnClickListener(new View.OnClickListener() {
                 @Override
                 public void onClick(View v) {
@@ -135,12 +177,13 @@ public class WebWorkspaceActivity extends Activity {
         TextView btnReload = new TextView(this);
         btnReload.setText("↻");
         btnReload.setTextColor(GlassTheme.TEXT_PRIMARY);
-        btnReload.setTextSize(16f);
+        btnReload.setTextSize(15f);
         btnReload.setGravity(Gravity.CENTER);
         btnReload.setBackground(GlassTheme.createCircleBadge(this, GlassTheme.ACCENT_AMBER, Color.TRANSPARENT));
-        LinearLayout.LayoutParams relLp = new LinearLayout.LayoutParams(GlassTheme.dp(this, 36), GlassTheme.dp(this, 36));
-        relLp.leftMargin = GlassTheme.dp(this, 8);
+        LinearLayout.LayoutParams relLp = new LinearLayout.LayoutParams(GlassTheme.dp(this, 34), GlassTheme.dp(this, 34));
+        relLp.leftMargin = GlassTheme.dp(this, 6);
         btnReload.setLayoutParams(relLp);
+        GlassTheme.attachSpringPress(btnReload);
         btnReload.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
@@ -162,6 +205,7 @@ public class WebWorkspaceActivity extends Activity {
 
         webView = new WebView(this);
         webView.setBackgroundColor(GlassTheme.BG_VOID);
+        webView.setLayerType(View.LAYER_TYPE_HARDWARE, null);
         webView.setLayoutParams(new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
 
         WebSettings ws = webView.getSettings();
@@ -170,10 +214,11 @@ public class WebWorkspaceActivity extends Activity {
         ws.setDatabaseEnabled(true);
         ws.setAllowFileAccess(true);
         ws.setMediaPlaybackRequiresUserGesture(false);
-        ws.setUseWideViewPort(true);
-        ws.setLoadWithOverviewMode(true);
+        ws.setSupportZoom(true);
         ws.setBuiltInZoomControls(true);
         ws.setDisplayZoomControls(false);
+
+        applyDesktopViewportSettings(false);
 
         webView.setWebViewClient(new WebViewClient() {
             @Override
@@ -185,6 +230,9 @@ public class WebWorkspaceActivity extends Activity {
             @Override
             public void onPageFinished(WebView view, String url) {
                 super.onPageFinished(view, url);
+                if (desktopModeEnabled) {
+                    injectDesktopViewportScript(view);
+                }
                 if (isFileBrowserMode && VaultConfigManager.isVaultConfigured(WebWorkspaceActivity.this) && !autoLoginAttempted) {
                     autoLoginAttempted = true;
                     injectAutoLoginScript(view);
@@ -215,10 +263,10 @@ public class WebWorkspaceActivity extends Activity {
 
         contentStack.addView(webView);
 
-        // Beginner Setup Wizard if FileBrowser password has not been created by user yet
         if (isFileBrowserMode && !VaultConfigManager.isVaultConfigured(this)) {
             setupWizardOverlay = buildBeginnerVaultSetupCard();
             contentStack.addView(setupWizardOverlay);
+            GlassTheme.animateGlassEntry(setupWizardOverlay);
         } else if (targetUrl != null) {
             webView.loadUrl(targetUrl);
         }
@@ -227,12 +275,55 @@ public class WebWorkspaceActivity extends Activity {
         setContentView(root);
     }
 
-    private void updateSubHeaderText(String fallbackHint) {
+    private void applyDesktopViewportSettings(boolean reloadAfter) {
+        if (webView == null) return;
+        WebSettings ws = webView.getSettings();
+        if (desktopModeEnabled) {
+            ws.setUserAgentString(UA_DESKTOP);
+            ws.setUseWideViewPort(true);
+            ws.setLoadWithOverviewMode(true);
+            webView.setInitialScale(65);
+        } else {
+            ws.setUserAgentString(UA_MOBILE);
+            ws.setUseWideViewPort(true);
+            ws.setLoadWithOverviewMode(true);
+            webView.setInitialScale(0);
+        }
+        updateDesktopToggleUi();
+        if (reloadAfter) {
+            autoLoginAttempted = false;
+            webView.reload();
+        }
+    }
+
+    private void updateDesktopToggleUi() {
+        if (btnDesktopToggle == null) return;
+        btnDesktopToggle.setText(desktopModeEnabled ? "PC ON" : "PC");
+        btnDesktopToggle.setTextColor(desktopModeEnabled ? GlassTheme.TEXT_PRIMARY : GlassTheme.TEXT_SECONDARY);
+        btnDesktopToggle.setBackground(GlassTheme.createPillButton(
+                this,
+                desktopModeEnabled ? GlassTheme.ACCENT_AMBER : GlassTheme.BG_CARD_ELEVATED,
+                desktopModeEnabled ? GlassTheme.BORDER_WARM : GlassTheme.BORDER_SUBTLE
+        ));
+    }
+
+    private void injectDesktopViewportScript(WebView view) {
+        String js = "(function(){"
+                + "var meta=document.querySelector('meta[name=\"viewport\"]');"
+                + "if(!meta){meta=document.createElement('meta');meta.name='viewport';document.head.appendChild(meta);}"
+                + "meta.content='width=1280, initial-scale=0.62, user-scalable=yes';"
+                + "})();";
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            view.evaluateJavascript(js, null);
+        }
+    }
+
+    private void updateSubHeaderText() {
         if (isFileBrowserMode && VaultConfigManager.isVaultConfigured(this)) {
             String lanIp = HardwareTelemetry.detectLocalIpv4();
-            tvSubHeader.setText("http://" + lanIp + ":8080  •  User: " + VaultConfigManager.getUsername(this));
+            tvSubHeader.setText("http://" + lanIp + ":8080 • " + VaultConfigManager.getUsername(this));
         } else {
-            tvSubHeader.setText((targetUrl != null ? targetUrl : "") + (fallbackHint != null && !fallbackHint.isEmpty() ? "  •  " + fallbackHint : ""));
+            tvSubHeader.setText((targetUrl != null ? targetUrl : "") + (fallbackHint != null && !fallbackHint.isEmpty() ? " • " + fallbackHint : ""));
         }
     }
 
@@ -279,7 +370,6 @@ public class WebWorkspaceActivity extends Activity {
         guide.setLayoutParams(gLp);
         card.addView(guide);
 
-        // Username field
         TextView lblUser = new TextView(this);
         lblUser.setText("ADMIN USERNAME");
         lblUser.setTextColor(GlassTheme.TEXT_MUTED);
@@ -301,7 +391,6 @@ public class WebWorkspaceActivity extends Activity {
         etUser.setLayoutParams(uLp);
         card.addView(etUser);
 
-        // Password field
         TextView lblPass = new TextView(this);
         lblPass.setText("NEW VAULT PASSWORD (MIN 6 CHARS)");
         lblPass.setTextColor(GlassTheme.TEXT_MUTED);
@@ -332,6 +421,7 @@ public class WebWorkspaceActivity extends Activity {
         btnCreate.setGravity(Gravity.CENTER);
         btnCreate.setPadding(GlassTheme.dp(this, 20), GlassTheme.dp(this, 15), GlassTheme.dp(this, 20), GlassTheme.dp(this, 15));
         btnCreate.setBackground(GlassTheme.createPillButton(this, GlassTheme.ACCENT_AMBER, GlassTheme.BORDER_WARM));
+        GlassTheme.attachSpringPress(btnCreate);
         card.addView(btnCreate);
 
         btnCreate.setOnClickListener(new View.OnClickListener() {
@@ -352,7 +442,7 @@ public class WebWorkspaceActivity extends Activity {
                 btnCreate.setText("Initializing Vault Database...");
 
                 VaultConfigManager.saveCredentials(WebWorkspaceActivity.this, u, p);
-                updateSubHeaderText("");
+                updateSubHeaderText();
 
                 Intent svc = new Intent(WebWorkspaceActivity.this, PocketCloudService.class);
                 svc.setAction(PocketCloudService.ACTION_REINIT_FILEBROWSER);
@@ -362,7 +452,6 @@ public class WebWorkspaceActivity extends Activity {
                     startService(svc);
                 }
 
-                // Wait briefly for daemon restart with new password, then auto-login
                 new Handler(Looper.getMainLooper()).postDelayed(new Runnable() {
                     @Override
                     public void run() {
@@ -421,7 +510,7 @@ public class WebWorkspaceActivity extends Activity {
         String msg = "LAN Access URL (PC / Laptop Browser):\n" + lanUrl
                 + "\n\nUsername: " + user
                 + "\nPassword: " + (pass.isEmpty() ? "(Not set yet)" : pass)
-                + "\n\nTip: Open the LAN URL on any device on your Wi-Fi to access your phone's storage.";
+                + "\n\nTip: Tap 'PC' in top toolbar anytime to toggle full Desktop view.";
 
         new AlertDialog.Builder(this)
                 .setTitle("FileBrowser Vault Key")
@@ -443,11 +532,18 @@ public class WebWorkspaceActivity extends Activity {
                         if (setupWizardOverlay == null) {
                             setupWizardOverlay = buildBeginnerVaultSetupCard();
                             contentStack.addView(setupWizardOverlay);
+                            GlassTheme.animateGlassEntry(setupWizardOverlay);
                         }
                     }
                 })
                 .setNegativeButton("Close", null)
                 .show();
+    }
+
+    @Override
+    public void finish() {
+        super.finish();
+        overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out);
     }
 
     @Override

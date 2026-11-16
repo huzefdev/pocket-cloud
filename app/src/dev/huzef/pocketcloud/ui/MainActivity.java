@@ -295,13 +295,16 @@ public class MainActivity extends Activity {
         }
 
         tabContentContainer.removeAllViews();
+        View nextView;
         if (index == 0) {
-            tabContentContainer.addView(buildDashboardBentoTab());
+            nextView = buildDashboardBentoTab();
         } else if (index == 1) {
-            tabContentContainer.addView(buildServicesTimelineTab());
+            nextView = buildServicesTimelineTab();
         } else {
-            tabContentContainer.addView(buildConsoleAndPatronageTab());
+            nextView = buildConsoleAndPatronageTab();
         }
+        tabContentContainer.addView(nextView);
+        GlassTheme.animateGlassEntry(nextView);
         bindTelemetryToUi();
     }
 
@@ -560,6 +563,7 @@ public class MainActivity extends Activity {
         subLabel.setLayoutParams(subLp);
         card.addView(subLabel);
 
+        GlassTheme.attachSpringPress(card);
         if (clickListener != null) {
             card.setOnClickListener(clickListener);
         }
