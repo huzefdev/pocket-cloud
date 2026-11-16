@@ -59,6 +59,100 @@ public class JellyfinEngineManager {
         }
     }
 
+    private boolean ensureGlibcRootfs(File dir, InstallProgressListener listener) {
+        File rootfs = new File(dir, "rootfs");
+        File ldSo = new File(rootfs, "lib/ld-linux-aarch64.so.1");
+        File usrLdSo = new File(rootfs, "usr/lib/ld-linux-aarch64.so.1");
+        if (ldSo.exists() || usrLdSo.exists()) return true;
+
+        try {
+            rootfs.mkdirs();
+            notifyProgress(listener, 88, "Fetching ARM64 glibc runtime layer (~25 MB)...");
+            PocketCloudService.appendLog("[8096] Provisioning embedded ARM64 glibc rootfs...");
+            String rootfsUrl = "https://github.com/termux/proot-distro/releases/download/v4.15.0/debian-bookworm-aarch64-pd-v4.15.0.tar.xz";
+            // Use Ubuntu/Alpine/Debian gzipped rootfs for pure-Java extraction without xz binary
+            String gzRootfsUrl = "https://cloud-images.ubuntu.com/minimal/releases/noble/release/ubuntu-24.04-minimal-cloudimg-arm64-root.tar.gz";
+            File rootTar = new File(dir, "rootfs.tar.gz");
+            downloadWithProgress(gzRootfsUrl, rootTar, 88, 95, "Downloading ARM64 Linux Runtime", listener);
+            notifyProgress(listener, 95, "Extracting Linux linker & glibc libraries...");
+            extractTarGzSelective(rootTar, rootfs);
+            rootTar.delete();
+            return new File(rootfs, "lib/ld-linux-aarch64.so.1").exists()
+                    || new File(rootfs, "usr/lib/ld-linux-aarch64.so.1").exists()
+                    || new File(rootfs, "usr/lib/aarch64-linux-gnu/ld-linux-aarch64.so.1").exists();
+        } catch (Exception e) {
+            PocketCloudService.appendLog("[8096] Runtime layer err: " + e.getMessage());
+            return false;
+        }
+    }
+
+    private void extractTarGzSelective(File tarGzFile, File destDir) throws Exception {
+        InputStream fis = new BufferedInputStream(new FileInputStream(tarGzFile), 65536);
+        GZIPInputStream gzis = new GZIPInputStream(fis, 65536);
+        byte[] header = new byte[512];
+        byte[] copyBuf = new byte[65536];
+
+        while (true) {
+            int n = readFully(gzis, header, 0, 512);
+            if (n < 512) break;
+            boolean allZero = true;
+            for (int i = 0; i < 512; i++) {
+                if (header[i] != 0) { allZero = false; break; }
+            }
+            if (allZero) break;
+
+            String name = parseTarString(header, 0, 100);
+            String prefix = parseTarString(header, 345, 155);
+            if (!prefix.isEmpty()) name = prefix + "/" + name;
+            while (name.startsWith("./")) name = name.substring(2);
+            long size = parseTarOctal(header, 124, 12);
+            byte typeFlag = header[156];
+
+            boolean needed = name.startsWith("lib/") || name.startsWith("usr/lib/")
+                    || name.startsWith("etc/") || name.startsWith("bin/") || name.startsWith("usr/bin/")
+                    || name.equals("lib") || name.equals("usr") || name.equals("usr/lib");
+
+            if (needed && !name.isEmpty()) {
+                File outFile = new File(destDir, name);
+                if (typeFlag == '5' || name.endsWith("/")) {
+                    outFile.mkdirs();
+                } else if (typeFlag == '2') {
+                    String linkTarget = parseTarString(header, 157, 100);
+                    File parent = outFile.getParentFile();
+                    if (parent != null && !parent.exists()) parent.mkdirs();
+                    try {
+                        if (android.os.Build.VERSION.SDK_INT >= 26) {
+                            java.nio.file.Files.deleteIfExists(outFile.toPath());
+                            java.nio.file.Files.createSymbolicLink(outFile.toPath(), java.nio.file.Paths.get(linkTarget));
+                        }
+                    } catch (Exception ignored) {}
+                } else if (typeFlag == '0' || typeFlag == 0) {
+                    File parent = outFile.getParentFile();
+                    if (parent != null && !parent.exists()) parent.mkdirs();
+                    FileOutputStream fos = new FileOutputStream(outFile);
+                    long remaining = size;
+                    while (remaining > 0) {
+                        int toRead = (int) Math.min(copyBuf.length, remaining);
+                        int r = gzis.read(copyBuf, 0, toRead);
+                        if (r == -1) break;
+                        fos.write(copyBuf, 0, r);
+                        remaining -= r;
+                    }
+                    fos.close();
+                    outFile.setExecutable(true, false);
+                } else {
+                    skipBytes(gzis, size);
+                }
+            } else {
+                skipBytes(gzis, size);
+            }
+
+            long pad = (512 - (size % 512)) % 512;
+            if (pad > 0) skipBytes(gzis, pad);
+        }
+        gzis.close();
+    }
+
     public synchronized boolean startIfInstalled() {
         if (HardwareTelemetry.pingLocalPort(8096, 150) > 0) {
             PocketCloudService.appendLog("[8096] Official Jellyfin Server ONLINE on :8096");
@@ -71,6 +165,9 @@ public class JellyfinEngineManager {
             return false;
         }
 
+        ensureGlibcRootfs(dir, activeListener);
+
+        File rootfs = new File(dir, "rootfs");
         File prootBin = new File(context.getApplicationInfo().nativeLibraryDir, "libproot.so");
         File dataDir = new File(dir, "data");
         File configDir = new File(dir, "config");
@@ -89,33 +186,62 @@ public class JellyfinEngineManager {
 
         try {
             java.util.List<String> cmd = new java.util.ArrayList<String>();
-            if (prootBin.exists()) {
+            if (prootBin.exists() && rootfs.exists()) {
                 cmd.add(prootBin.getAbsolutePath());
                 cmd.add("-0");
+                cmd.add("-r");
+                cmd.add(rootfs.getAbsolutePath());
+                cmd.add("-b");
+                cmd.add("/dev");
+                cmd.add("-b");
+                cmd.add("/proc");
+                cmd.add("-b");
+                cmd.add("/sys");
+                cmd.add("-b");
+                cmd.add(dir.getAbsolutePath() + ":/jf_engine");
                 cmd.add("-b");
                 cmd.add(sdcardPath + ":/media");
-            }
-            cmd.add(jfBin.getAbsolutePath());
-            cmd.add("--datadir");
-            cmd.add(dataDir.getAbsolutePath());
-            cmd.add("--configdir");
-            cmd.add(configDir.getAbsolutePath());
-            cmd.add("--cachedir");
-            cmd.add(cacheDir.getAbsolutePath());
-            cmd.add("--logdir");
-            cmd.add(logDir.getAbsolutePath());
-            if (webDir != null && webDir.exists()) {
-                cmd.add("--webdir");
-                cmd.add(webDir.getAbsolutePath());
-            }
-            if (ffmpegBin != null && ffmpegBin.exists()) {
-                cmd.add("--ffmpeg");
-                cmd.add(ffmpegBin.getAbsolutePath());
+                cmd.add("-w");
+                cmd.add("/jf_engine");
+
+                String relJf = jfBin.getAbsolutePath().replace(dir.getAbsolutePath(), "/jf_engine");
+                cmd.add(relJf);
+                cmd.add("--datadir");
+                cmd.add("/jf_engine/data");
+                cmd.add("--configdir");
+                cmd.add("/jf_engine/config");
+                cmd.add("--cachedir");
+                cmd.add("/jf_engine/cache");
+                cmd.add("--logdir");
+                cmd.add("/jf_engine/log");
+                if (webDir != null && webDir.exists()) {
+                    cmd.add("--webdir");
+                    cmd.add(webDir.getAbsolutePath().replace(dir.getAbsolutePath(), "/jf_engine"));
+                }
+                if (ffmpegBin != null && ffmpegBin.exists()) {
+                    cmd.add("--ffmpeg");
+                    cmd.add(ffmpegBin.getAbsolutePath().replace(dir.getAbsolutePath(), "/jf_engine"));
+                }
+            } else {
+                cmd.add(jfBin.getAbsolutePath());
+                cmd.add("--datadir");
+                cmd.add(dataDir.getAbsolutePath());
+                cmd.add("--configdir");
+                cmd.add(configDir.getAbsolutePath());
+                cmd.add("--cachedir");
+                cmd.add(cacheDir.getAbsolutePath());
+                cmd.add("--logdir");
+                cmd.add(logDir.getAbsolutePath());
+                if (webDir != null && webDir.exists()) {
+                    cmd.add("--webdir");
+                    cmd.add(webDir.getAbsolutePath());
+                }
             }
 
             ProcessBuilder pb = new ProcessBuilder(cmd);
-            pb.directory(jfBin.getParentFile());
-            pb.environment().put("HOME", dir.getAbsolutePath());
+            pb.directory(dir);
+            pb.environment().put("HOME", "/jf_engine");
+            pb.environment().put("PATH", "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin");
             pb.environment().put("TMPDIR", tmpDir.getAbsolutePath());
             pb.environment().put("PROOT_TMP_DIR", tmpDir.getAbsolutePath());
             pb.environment().put("PROOT_NO_SECCOMP", "1");
@@ -125,7 +251,7 @@ public class JellyfinEngineManager {
 
             jellyfinProcess = pb.start();
             pipeLogs(jellyfinProcess);
-            PocketCloudService.appendLog("[8096] Official Jellyfin Daemon SPAWNED (:8096)");
+            PocketCloudService.appendLog("[8096] Official Jellyfin PRoot-Rootfs Daemon SPAWNED");
             return true;
         } catch (Exception e) {
             PocketCloudService.appendLog("[8096] Jellyfin Boot ERR: " + e.getMessage());
