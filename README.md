@@ -1,93 +1,69 @@
-# Termux Pocket Cloud: Complete Self-Hosted NAS & Media Server
-Turn any unrooted Android device into a complete, automated private cloud server running:
-- **Jellyfin Media Server** (with FFmpeg transcoding)
-- **FileBrowser** (Fast web-based file management, replacing Google Drive/Photos)
-- **Syncthing** (P2P real-time backup and multi-device file synchronization)
+<div align="center">
+
+# POCKET CLOUD
+### Turn Any Android Device Into a Zero-Termux Private Cloud & Media Server
+
+[![GitHub Release](https://img.shields.io/github/v/release/huzefdev/pocket-cloud?style=for-the-badge&color=EA580C&label=LATEST%20APK)](https://github.com/huzefdev/pocket-cloud/releases/latest)
+[![Platform](https://img.shields.io/badge/PLATFORM-ANDROID%208.0%2B%20ARM64-10B981?style=for-the-badge)](https://github.com/huzefdev/pocket-cloud)
+[![Stack](https://img.shields.io/badge/STACK-NATIVE%20JAVA%208%20%2B%20GO-0B0B0D?style=for-the-badge)](https://github.com/huzefdev/pocket-cloud)
+
+**Replace Google Drive, Google Photos, and Plex/Netflix with a self-hosted bare-metal server running locally on your phone.**
+
+[Download Latest APK](https://github.com/huzefdev/pocket-cloud/releases/latest) | [Discord Support](https://discord.gg/GcGkW5fvDh) | [Report Issue](https://github.com/huzefdev/pocket-cloud/issues)
+
+</div>
+
 ---
+
 ## Architecture Overview
 
-| Service | Protocol / Port | Purpose | Replacement For |
-| :--- | :--- | :--- | :--- |
-| **FileBrowser** | HTTP / `:8080` | Web UI for uploading, organizing, and streaming files | Google Drive |
-| **Jellyfin** | HTTP / `:8096` | Full media streaming dashboard with metadata & transcoding | Netflix / Plex |
-| **Syncthing** | Web UI / `:8384` | Automated P2P continuous camera & folder backup | Google Photos Auto-Sync |
+PocketCloud eliminates terminal setup, PRoot containers, and multi-tab browser juggling by embedding standalone native ARM64 daemons and an in-app glassmorphic workspace directly inside a lightweight Android APK.
+
+| Service Module | Local / LAN Port | Engine Core | Replaces |
+| :--- | :---: | :--- | :--- |
+| **FileBrowser Vault** | `:8080` | Bundled Native ARM64 Binary + Guided Password Wizard | Google Drive |
+| **PocketMedia Server** | `:8096` | Zero-Dependency HTTP Range Streaming Engine | Netflix / Plex |
+| **Syncthing Mesh** | `:8384` | Bundled P2P Sync Node (`0.0.0.0` LAN Ready) | Google Photos Sync |
 
 ---
-## Prerequisites
-1. Install **Termux** from F-Droid (do not use the deprecated Google Play Store build).
-2. Install **Termux:API** and **Termux:Boot** (optional, for auto-start).
-3. Disable Android Battery Optimization for Termux:
-   - Settings -> Battery -> Termux -> Set to **Unrestricted**.
-4. Disable Phantom Process Killer (if running Android 12+):
-   - Developer Options -> Disable child process restrictions.
+
+## Mode 1: Standalone Android App (Recommended - Zero Termux)
+
+1. Download **PocketCloud-v0.xx.apk** from [Releases](https://github.com/huzefdev/pocket-cloud/releases/latest).
+2. Install the APK and grant **All Files Access** so your local storage can be served across your Wi-Fi network.
+3. Tap **Get Started / Boot Engine** on the Node dashboard.
+4. Open **FileBrowser (:8080)** inside the app to complete the **1-Step Vault Password Wizard** with automatic login.
+5. Connect from any laptop, PC, or Smart TV on the same Wi-Fi using your phone's displayed LAN IP (e.g., `http://192.168.1.x:8080`).
+
 ---
-## One click installation 
 
-# Pocket Cloud: Complete Self-Hosted Android Server
-## ⚡ 1-Click Automated Setup
+## Mode 2: Termux Bare-Metal CLI Stack (Advanced Users)
 
+Prefer running the full Linux/PRoot stack directly inside Termux? Run the automated deployment script:
 
-before that if you encounter any problems contact:
-huzef.dev@gmail.com 
-or
-https://discord.gg/GcGkW5fvDh
+    curl -sL https://raw.githubusercontent.com/huzefdev/pocket-cloud/main/scripts/install.sh | bash
 
-Run this single command inside Termux:
+---
 
-```bash
-curl -sL https://raw.githubusercontent.com/huzefdev/pocket-cloud/main/install.sh | bash
+## Repository Structure
 
-```
+    pocket-cloud/
+    ├── app/
+    │   ├── AndroidManifest.xml       # Target SDK 34 Foreground Service & Workspace Declarations
+    │   ├── res/                      # Standard Android XML Resources
+    │   └── src/dev/huzef/pocketcloud/
+    │       ├── core/                 # GlassTheme, HardwareTelemetry, VaultConfigManager
+    │       ├── model/                # ServiceNode & TelemetrySnapshot Models
+    │       ├── server/               # Embedded HTTP Range Media Server (:8096)
+    │       ├── service/              # Foreground Daemon & WakeLock Orchestrator
+    │       └── ui/                   # ParticleSphereView, Bento Dashboard & WebWorkspace
+    ├── scripts/
+    │   └── install.sh                # Automated Termux Bare-Metal Installer
+    └── README.md
 
-🛠️ Manual Step-by-Step Installation
-If you prefer to install services manually, follow these steps:
-Step 1: Base Environment & Storage
+---
 
-pkg update && pkg upgrade -y
-```bash
-termux-setup-storage
-pkg install -y wget curl git tar jq proot ffmpeg proot-distro syncthing
+## Community & Support
 
-```
-Step 2: FileBrowser Setup (Replaces Google Drive)
-```bash
-curl -fsSL [https://raw.githubusercontent.com/filebrowser/get/master/get.sh](https://raw.githubusercontent.com/filebrowser/get/master/get.sh) | bash
-mkdir -p ~/services/filebrowser
-filebrowser config init -a 0.0.0.0 -p 8080 -r ~/storage/shared -d ~/services/filebrowser/filebrowser.db
-filebrowser users add admin admin --perm.admin=true -d ~/services/filebrowser/filebrowser.db
-```
-Step 3: Syncthing Setup (Replaces Google Photos Sync)
-Termux:
-```bash
-   pkg install syncthing -y
-```
-
- * Syncthing start:
-```bash
-    syncthing
-```
-
-Step 4: Jellyfin Media Server (via Ubuntu PRoot)
-```bash
-proot-distro install ubuntu
-proot-distro login ubuntu
-```
-
-Inside Ubuntu Container Shell:
-```bash
-apt update && apt upgrade -y
-apt install -y curl wget gnupg lsb-release ffmpeg libicu-dev
-mkdir -p /etc/apt/keyrings
-curl -fsSL [https://repo.jellyfin.org/jellyfin_team.gpg.key](https://repo.jellyfin.org/jellyfin_team.gpg.key) | gpg --dearmor -o /etc/apt/keyrings/jellyfin.gpg
-echo "deb [signed-by=/etc/apt/keyrings/jellyfin.gpg arch=$(dpkg --print-architecture)] [https://repo.jellyfin.org/ubuntu](https://repo.jellyfin.org/ubuntu) $(lsb_release -cs) main" | tee /etc/apt/sources.list.d/jellyfin.list
-apt update && apt install -y jellyfin
-
-```
-
-
-Accessing Your Dashboards
-Open your browser from any device connected to the same Wi-Fi network:
-Files: http://<PHONE-IP>:8080 (Default: admin / admin)
-Sync: http://<PHONE-IP>:8384
-Media: http://<PHONE-IP>:8096
-(Find your phone's IP inside Termux using ifconfig wlan0)
+- **Developer:** Shaikh Huzef Hanif (`huzef.dev@gmail.com`)
+- **Discord Server:** https://discord.gg/GcGkW5fvDh

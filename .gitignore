@@ -1,0 +1,11 @@
+*.apk
+*.ap_
+*.dex
+*.class
+*.jks
+*.keystore
+*.so
+*.log
+build/
+.release_state/
+.tmp_*/
