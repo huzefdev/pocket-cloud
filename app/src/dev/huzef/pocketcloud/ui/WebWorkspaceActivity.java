@@ -37,6 +37,7 @@ import org.json.JSONObject;
 import dev.huzef.pocketcloud.core.GlassTheme;
 import dev.huzef.pocketcloud.core.HardwareTelemetry;
 import dev.huzef.pocketcloud.core.VaultConfigManager;
+import dev.huzef.pocketcloud.server.JellyfinEngineManager;
 import dev.huzef.pocketcloud.service.PocketCloudService;
 
 public class WebWorkspaceActivity extends Activity {
@@ -266,10 +267,12 @@ public class WebWorkspaceActivity extends Activity {
 
         contentStack.addView(webView);
 
-        if ((isFileBrowserMode && !VaultConfigManager.isVaultConfigured(this)) || (isMediaMode && !VaultConfigManager.isMediaConfigured(this))) {
+        if (isFileBrowserMode && !VaultConfigManager.isVaultConfigured(this)) {
             setupWizardOverlay = buildBeginnerVaultSetupCard();
             contentStack.addView(setupWizardOverlay);
             GlassTheme.animateGlassEntry(setupWizardOverlay);
+        } else if (isMediaMode) {
+            checkAndLaunchRealJellyfin();
         } else if (targetUrl != null) {
             webView.loadUrl(targetUrl);
         }
@@ -339,6 +342,220 @@ public class WebWorkspaceActivity extends Activity {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
             view.evaluateJavascript(js, null);
         }
+    }
+
+
+    private void checkAndLaunchRealJellyfin() {
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                final boolean alive = HardwareTelemetry.pingLocalPort(8096, 180) > 0;
+                new Handler(Looper.getMainLooper()).post(new Runnable() {
+                    @Override
+                    public void run() {
+                        if (alive) {
+                            if (targetUrl != null) webView.loadUrl(targetUrl);
+                        } else {
+                            setupWizardOverlay = buildRealJellyfinInstallerCard();
+                            contentStack.addView(setupWizardOverlay);
+                            GlassTheme.animateGlassEntry(setupWizardOverlay);
+                        }
+                    }
+                });
+            }
+        }).start();
+    }
+
+    private View buildRealJellyfinInstallerCard() {
+        ScrollView scroll = new ScrollView(this);
+        scroll.setFillViewport(true);
+        scroll.setBackground(GlassTheme.createRootAmbientBackground());
+
+        LinearLayout outer = new LinearLayout(this);
+        outer.setOrientation(LinearLayout.VERTICAL);
+        outer.setGravity(Gravity.CENTER);
+        outer.setPadding(GlassTheme.dp(this, 22), GlassTheme.dp(this, 22), GlassTheme.dp(this, 22), GlassTheme.dp(this, 22));
+
+        LinearLayout card = new LinearLayout(this);
+        card.setOrientation(LinearLayout.VERTICAL);
+        card.setBackground(GlassTheme.createFrostedCard(this, 24f, true));
+        card.setPadding(GlassTheme.dp(this, 22), GlassTheme.dp(this, 22), GlassTheme.dp(this, 22), GlassTheme.dp(this, 22));
+
+        TextView pill = new TextView(this);
+        pill.setText("OFFICIAL JELLYFIN ENGINE  •  ZERO-TERMUX");
+        pill.setTextColor(GlassTheme.ACCENT_AMBER_GLOW);
+        pill.setTextSize(11f);
+        pill.setTypeface(Typeface.MONOSPACE);
+        card.addView(pill);
+
+        TextView title = new TextView(this);
+        title.setText("Deploy Real Jellyfin Server");
+        title.setTextColor(GlassTheme.TEXT_PRIMARY);
+        title.setTextSize(22f);
+        title.setTypeface(Typeface.DEFAULT_BOLD);
+        LinearLayout.LayoutParams tLp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        tLp.topMargin = GlassTheme.dp(this, 8);
+        title.setLayoutParams(tLp);
+        card.addView(title);
+
+        TextView desc = new TextView(this);
+        desc.setText("Runs the genuine upstream Jellyfin Media Server + Web UI + FFmpeg natively on your phone without Termux or Ubuntu PRoot.");
+        desc.setTextColor(GlassTheme.TEXT_SECONDARY);
+        desc.setTextSize(13f);
+        desc.setLineSpacing(0f, 1.35f);
+        LinearLayout.LayoutParams dLp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        dLp.topMargin = GlassTheme.dp(this, 8);
+        dLp.bottomMargin = GlassTheme.dp(this, 16);
+        desc.setLayoutParams(dLp);
+        card.addView(desc);
+
+        // Beginner Quick-Start Cheat Sheet inside card
+        LinearLayout guideBox = new LinearLayout(this);
+        guideBox.setOrientation(LinearLayout.VERTICAL);
+        guideBox.setBackground(GlassTheme.createFrostedCard(this, 16f, false));
+        guideBox.setPadding(GlassTheme.dp(this, 14), GlassTheme.dp(this, 12), GlassTheme.dp(this, 14), GlassTheme.dp(this, 12));
+
+        TextView guideTitle = new TextView(this);
+        guideTitle.setText("BEGINNER SETUP GUIDE (AFTER BOOT):");
+        guideTitle.setTextColor(GlassTheme.EMERALD_LIVE);
+        guideTitle.setTextSize(11f);
+        guideTitle.setTypeface(Typeface.MONOSPACE);
+        guideBox.addView(guideTitle);
+
+        TextView guideSteps = new TextView(this);
+        guideSteps.setText("1. Choose Language & create your Jellyfin Admin password\n2. Tap 'Add Media Library' -> Content type: Movies\n3. Enter folder path:  /media/Movies  (or /sdcard/Movies)");
+        guideSteps.setTextColor(GlassTheme.TEXT_SECONDARY);
+        guideSteps.setTextSize(12f);
+        guideSteps.setLineSpacing(0f, 1.35f);
+        LinearLayout.LayoutParams gsLp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        gsLp.topMargin = GlassTheme.dp(this, 6);
+        guideSteps.setLayoutParams(gsLp);
+        guideBox.addView(guideSteps);
+
+        TextView btnCopyPath = new TextView(this);
+        btnCopyPath.setText("Copy Library Path (/media/Movies)");
+        btnCopyPath.setTextColor(GlassTheme.ACCENT_AMBER_GLOW);
+        btnCopyPath.setTextSize(11f);
+        btnCopyPath.setTypeface(Typeface.MONOSPACE);
+        LinearLayout.LayoutParams cpLp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        cpLp.topMargin = GlassTheme.dp(this, 8);
+        btnCopyPath.setLayoutParams(cpLp);
+        btnCopyPath.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                ClipboardManager cm = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
+                if (cm != null) {
+                    cm.setPrimaryClip(ClipData.newPlainText("Jellyfin Media Path", "/media/Movies"));
+                    Toast.makeText(WebWorkspaceActivity.this, "Copied /media/Movies", Toast.LENGTH_SHORT).show();
+                }
+            }
+        });
+        guideBox.addView(btnCopyPath);
+        card.addView(guideBox);
+
+        final ProgressBar installBar = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
+        installBar.setMax(100);
+        installBar.setVisibility(View.GONE);
+        LinearLayout.LayoutParams barLp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, GlassTheme.dp(this, 6));
+        barLp.topMargin = GlassTheme.dp(this, 16);
+        installBar.setLayoutParams(barLp);
+        card.addView(installBar);
+
+        final TextView tvStatus = new TextView(this);
+        tvStatus.setTextColor(GlassTheme.TEXT_SECONDARY);
+        tvStatus.setTextSize(12f);
+        tvStatus.setTypeface(Typeface.MONOSPACE);
+        LinearLayout.LayoutParams stLp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        stLp.topMargin = GlassTheme.dp(this, 8);
+        stLp.bottomMargin = GlassTheme.dp(this, 16);
+        tvStatus.setLayoutParams(stLp);
+        card.addView(tvStatus);
+
+        final JellyfinEngineManager mgr = PocketCloudService.jellyfinManager != null
+                ? PocketCloudService.jellyfinManager
+                : new JellyfinEngineManager(this);
+
+        final TextView btnAction = new TextView(this);
+        btnAction.setText(mgr.isInstalled() ? "Boot Official Jellyfin Server →" : "Install & Start Real Jellyfin →");
+        btnAction.setTextColor(GlassTheme.TEXT_PRIMARY);
+        btnAction.setTextSize(15f);
+        btnAction.setTypeface(Typeface.DEFAULT_BOLD);
+        btnAction.setGravity(Gravity.CENTER);
+        btnAction.setPadding(GlassTheme.dp(this, 20), GlassTheme.dp(this, 15), GlassTheme.dp(this, 20), GlassTheme.dp(this, 15));
+        btnAction.setBackground(GlassTheme.createPillButton(this, GlassTheme.ACCENT_AMBER, GlassTheme.BORDER_WARM));
+        GlassTheme.attachSpringPress(btnAction);
+        card.addView(btnAction);
+
+        btnAction.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                btnAction.setEnabled(false);
+                installBar.setVisibility(View.VISIBLE);
+                if (mgr.isInstalled()) {
+                    installBar.setIndeterminate(true);
+                    tvStatus.setText("Starting Official Jellyfin Server on :8096...");
+                    new Thread(new Runnable() {
+                        @Override
+                        public void run() {
+                            mgr.startIfInstalled();
+                            for (int i = 0; i < 24; i++) {
+                                if (HardwareTelemetry.pingLocalPort(8096, 200) > 0) break;
+                                try { Thread.sleep(500L); } catch (Exception ignored) {}
+                            }
+                            new Handler(Looper.getMainLooper()).post(new Runnable() {
+                                @Override
+                                public void run() {
+                                    if (setupWizardOverlay != null) {
+                                        contentStack.removeView(setupWizardOverlay);
+                                        setupWizardOverlay = null;
+                                    }
+                                    if (targetUrl != null) webView.loadUrl(targetUrl);
+                                }
+                            });
+                        }
+                    }).start();
+                } else {
+                    btnAction.setText("Installing Jellyfin Engine...");
+                    mgr.installOfficialJellyfinAsync(new JellyfinEngineManager.InstallProgressListener() {
+                        @Override
+                        public void onProgress(final int percent, final String statusText) {
+                            new Handler(Looper.getMainLooper()).post(new Runnable() {
+                                @Override
+                                public void run() {
+                                    installBar.setIndeterminate(false);
+                                    installBar.setProgress(percent);
+                                    tvStatus.setText(statusText);
+                                }
+                            });
+                        }
+
+                        @Override
+                        public void onComplete(final boolean success, final String message) {
+                            new Handler(Looper.getMainLooper()).post(new Runnable() {
+                                @Override
+                                public void run() {
+                                    tvStatus.setText(message);
+                                    if (success) {
+                                        if (setupWizardOverlay != null) {
+                                            contentStack.removeView(setupWizardOverlay);
+                                            setupWizardOverlay = null;
+                                        }
+                                        if (targetUrl != null) webView.loadUrl(targetUrl);
+                                    } else {
+                                        btnAction.setEnabled(true);
+                                        btnAction.setText("Retry Jellyfin Install");
+                                    }
+                                }
+                            });
+                        }
+                    });
+                }
+            }
+        });
+
+        outer.addView(card);
+        scroll.addView(outer);
+        return scroll;
     }
 
     private void updateSubHeaderText() {

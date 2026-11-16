@@ -25,7 +25,7 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 import dev.huzef.pocketcloud.core.HardwareTelemetry;
 import dev.huzef.pocketcloud.core.VaultConfigManager;
-import dev.huzef.pocketcloud.server.PocketMediaServer;
+import dev.huzef.pocketcloud.server.JellyfinEngineManager;
 import dev.huzef.pocketcloud.ui.MainActivity;
 
 public class PocketCloudService extends Service {
@@ -43,7 +43,7 @@ public class PocketCloudService extends Service {
     private PowerManager.WakeLock wakeLock;
     private Process fileBrowserProcess;
     private Process syncthingProcess;
-    private PocketMediaServer mediaServer;
+    public static JellyfinEngineManager jellyfinManager;
 
     public static List<String> getLogsSnapshot() {
         synchronized (ENGINE_LOGS) {
@@ -64,7 +64,7 @@ public class PocketCloudService extends Service {
     public void onCreate() {
         super.onCreate();
         createNotificationChannel();
-        mediaServer = new PocketMediaServer(8096);
+        jellyfinManager = new JellyfinEngineManager(this);
     }
 
     @Override
@@ -139,9 +139,8 @@ public class PocketCloudService extends Service {
                 appendLog("[SYS] Initializing PocketCloud Zero-Termux Engine...");
                 startNativeFileBrowser(false);
 
-                if (HardwareTelemetry.pingLocalPort(8096, 120) < 0) {
-                    mediaServer.start();
-                    appendLog("[8096] PocketMedia HTTP Range Server ONLINE");
+                if (jellyfinManager != null) {
+                    jellyfinManager.startIfInstalled();
                 }
 
                 startNativeSyncthing();
@@ -323,7 +322,7 @@ public class PocketCloudService extends Service {
 
     private void stopAllDaemons() {
         isEngineActive = false;
-        if (mediaServer != null) mediaServer.stop();
+        if (jellyfinManager != null) jellyfinManager.stop();
         if (fileBrowserProcess != null) {
             fileBrowserProcess.destroy();
             fileBrowserProcess = null;
