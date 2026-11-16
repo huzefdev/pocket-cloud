@@ -64,12 +64,29 @@ public class JellyfinEngineManager {
         }
     }
 
+    private void ensureLinkerSymlink(File rootfs) {
+        try {
+            File libDir = new File(rootfs, "lib");
+            libDir.mkdirs();
+            File targetLd = new File(libDir, "ld-linux-aarch64.so.1");
+            if (!targetLd.exists()) {
+                File gnuLd = new File(rootfs, "usr/lib/aarch64-linux-gnu/ld-linux-aarch64.so.1");
+                if (gnuLd.exists() && android.os.Build.VERSION.SDK_INT >= 26) {
+                    java.nio.file.Files.createSymbolicLink(targetLd.toPath(), java.nio.file.Paths.get("../usr/lib/aarch64-linux-gnu/ld-linux-aarch64.so.1"));
+                }
+            }
+        } catch (Exception ignored) {}
+    }
+
     private boolean ensureGlibcRootfs(File dir, InstallProgressListener listener) {
         File rootfs = new File(dir, "rootfs");
         File ld1 = new File(rootfs, "lib/ld-linux-aarch64.so.1");
         File ld2 = new File(rootfs, "usr/lib/ld-linux-aarch64.so.1");
         File ld3 = new File(rootfs, "usr/lib/aarch64-linux-gnu/ld-linux-aarch64.so.1");
-        if (ld1.exists() || ld2.exists() || ld3.exists()) return true;
+        if (ld1.exists() || ld2.exists() || ld3.exists()) {
+            ensureLinkerSymlink(rootfs);
+            return true;
+        }
 
         try {
             rootfs.mkdirs();
@@ -83,6 +100,7 @@ public class JellyfinEngineManager {
             notifyProgress(listener, 95, "Extracting Linux linker & glibc libraries...");
             extractTarGzSelective(rootTar, rootfs);
             rootTar.delete();
+            ensureLinkerSymlink(rootfs);
             return new File(rootfs, "lib/ld-linux-aarch64.so.1").exists()
                     || new File(rootfs, "usr/lib/ld-linux-aarch64.so.1").exists()
                     || new File(rootfs, "usr/lib/aarch64-linux-gnu/ld-linux-aarch64.so.1").exists();
