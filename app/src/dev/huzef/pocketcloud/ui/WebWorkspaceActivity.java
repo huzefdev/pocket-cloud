@@ -406,12 +406,20 @@ public class WebWorkspaceActivity extends Activity {
         new Thread(new Runnable() {
             @Override
             public void run() {
+                final JellyfinEngineManager mgr = PocketCloudService.jellyfinManager != null
+                        ? PocketCloudService.jellyfinManager
+                        : new JellyfinEngineManager(WebWorkspaceActivity.this);
                 final boolean alive = HardwareTelemetry.pingLocalPort(8096, 180) > 0;
                 new Handler(Looper.getMainLooper()).post(new Runnable() {
                     @Override
                     public void run() {
                         if (alive) {
                             if (targetUrl != null) webView.loadUrl(targetUrl);
+                        } else if (mgr.isInstalled()) {
+                            // Already installed: auto-boot in background & show Glassmorphic Live Timer card
+                            setupWizardOverlay = buildLiveJellyfinWarmupCard(mgr);
+                            contentStack.addView(setupWizardOverlay);
+                            GlassTheme.animateGlassEntry(setupWizardOverlay);
                         } else {
                             setupWizardOverlay = buildRealJellyfinInstallerCard();
                             contentStack.addView(setupWizardOverlay);
@@ -421,6 +429,156 @@ public class WebWorkspaceActivity extends Activity {
                 });
             }
         }).start();
+    }
+
+    private View buildLiveJellyfinWarmupCard(final JellyfinEngineManager mgr) {
+        ScrollView scroll = new ScrollView(this);
+        scroll.setFillViewport(true);
+        scroll.setBackground(GlassTheme.createRootAmbientBackground());
+
+        LinearLayout outer = new LinearLayout(this);
+        outer.setOrientation(LinearLayout.VERTICAL);
+        outer.setGravity(Gravity.CENTER);
+        outer.setPadding(GlassTheme.dp(this, 22), GlassTheme.dp(this, 22), GlassTheme.dp(this, 22), GlassTheme.dp(this, 22));
+
+        LinearLayout card = new LinearLayout(this);
+        card.setOrientation(LinearLayout.VERTICAL);
+        card.setBackground(GlassTheme.createFrostedCard(this, 26f, true));
+        card.setPadding(GlassTheme.dp(this, 22), GlassTheme.dp(this, 22), GlassTheme.dp(this, 22), GlassTheme.dp(this, 22));
+
+        LinearLayout topRow = new LinearLayout(this);
+        topRow.setOrientation(LinearLayout.HORIZONTAL);
+        topRow.setGravity(Gravity.CENTER_VERTICAL);
+
+        TextView pill = new TextView(this);
+        pill.setText("JELLYFIN // ENGINE BOOT");
+        pill.setTextColor(GlassTheme.ACCENT_AMBER_GLOW);
+        pill.setTextSize(11f);
+        pill.setTypeface(Typeface.MONOSPACE);
+        pill.setLayoutParams(new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        topRow.addView(pill);
+
+        final TextView tvTimer = new TextView(this);
+        tvTimer.setText("00:00 / ~00:25");
+        tvTimer.setTextColor(GlassTheme.EMERALD_LIVE);
+        tvTimer.setTextSize(12f);
+        tvTimer.setTypeface(Typeface.MONOSPACE);
+        tvTimer.setPadding(GlassTheme.dp(this, 10), GlassTheme.dp(this, 4), GlassTheme.dp(this, 10), GlassTheme.dp(this, 4));
+        tvTimer.setBackground(GlassTheme.createPillButton(this, Color.parseColor("#1F10B981"), Color.parseColor("#5510B981")));
+        topRow.addView(tvTimer);
+        card.addView(topRow);
+
+        TextView title = new TextView(this);
+        title.setText("Warming Up Cinema Server");
+        title.setTextColor(GlassTheme.TEXT_PRIMARY);
+        title.setTextSize(21f);
+        title.setTypeface(Typeface.DEFAULT_BOLD);
+        LinearLayout.LayoutParams tLp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        tLp.topMargin = GlassTheme.dp(this, 12);
+        title.setLayoutParams(tLp);
+        card.addView(title);
+
+        TextView sub = new TextView(this);
+        sub.setText("Starting official .NET Kestrel & SQLite media catalog on :8096. Runs once and stays fast in background.");
+        sub.setTextColor(GlassTheme.TEXT_SECONDARY);
+        sub.setTextSize(13f);
+        sub.setLineSpacing(0f, 1.35f);
+        LinearLayout.LayoutParams sLp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        sLp.topMargin = GlassTheme.dp(this, 6);
+        sLp.bottomMargin = GlassTheme.dp(this, 16);
+        sub.setLayoutParams(sLp);
+        card.addView(sub);
+
+        final ProgressBar bar = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
+        bar.setMax(100);
+        bar.setProgress(15);
+        LinearLayout.LayoutParams bLp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, GlassTheme.dp(this, 6));
+        bLp.bottomMargin = GlassTheme.dp(this, 16);
+        bar.setLayoutParams(bLp);
+        card.addView(bar);
+
+        final TextView tvStage1 = new TextView(this);
+        tvStage1.setText("✓  1. ARM64 Glibc & PRoot Loader Ready");
+        tvStage1.setTextColor(GlassTheme.EMERALD_LIVE);
+        tvStage1.setTextSize(12f);
+        tvStage1.setPadding(GlassTheme.dp(this, 12), GlassTheme.dp(this, 10), GlassTheme.dp(this, 12), GlassTheme.dp(this, 10));
+        tvStage1.setBackground(GlassTheme.createFrostedCard(this, 14f, false));
+        card.addView(tvStage1);
+
+        final TextView tvStage2 = new TextView(this);
+        tvStage2.setText("●  2. Initializing .NET Runtime & Database...");
+        tvStage2.setTextColor(GlassTheme.TEXT_PRIMARY);
+        tvStage2.setTextSize(12f);
+        tvStage2.setPadding(GlassTheme.dp(this, 12), GlassTheme.dp(this, 10), GlassTheme.dp(this, 12), GlassTheme.dp(this, 10));
+        tvStage2.setBackground(GlassTheme.createFrostedCard(this, 14f, true));
+        LinearLayout.LayoutParams st2Lp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        st2Lp.topMargin = GlassTheme.dp(this, 8);
+        tvStage2.setLayoutParams(st2Lp);
+        card.addView(tvStage2);
+
+        final TextView tvLiveLog = new TextView(this);
+        tvLiveLog.setText("Spawning Jellyfin Kestrel listener...");
+        tvLiveLog.setTextColor(GlassTheme.TEXT_MUTED);
+        tvLiveLog.setTextSize(11f);
+        tvLiveLog.setTypeface(Typeface.MONOSPACE);
+        LinearLayout.LayoutParams logLp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        logLp.topMargin = GlassTheme.dp(this, 14);
+        tvLiveLog.setLayoutParams(logLp);
+        card.addView(tvLiveLog);
+
+        outer.addView(card);
+        scroll.addView(outer);
+
+        // Kick off background start + 1-second live timer & port poll
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                mgr.startIfInstalled();
+            }
+        }).start();
+
+        final long t0 = System.currentTimeMillis();
+        final Handler h = new Handler(Looper.getMainLooper());
+        final Runnable ticker = new Runnable() {
+            @Override
+            public void run() {
+                if (isFinishing() || setupWizardOverlay == null) return;
+                long sec = (System.currentTimeMillis() - t0) / 1000L;
+                long mm = sec / 60L;
+                long ss = sec % 60L;
+                tvTimer.setText(String.format(java.util.Locale.US, "%02d:%02d / ~00:25", mm, ss));
+                bar.setProgress((int) Math.min(95, 15 + sec * 3));
+                if (sec >= 10) {
+                    tvStage1.setText("✓  1. ARM64 Glibc & PRoot Loader Ready");
+                    tvStage2.setText("●  2. Binding Official Jellyfin WebUI (:8096)...");
+                }
+                String last = mgr.getLastProcessLine();
+                if (last != null && !last.isEmpty()) {
+                    tvLiveLog.setText(last.length() > 90 ? last.substring(0, 90) + "..." : last);
+                }
+
+                new Thread(new Runnable() {
+                    @Override
+                    public void run() {
+                        final boolean up = HardwareTelemetry.pingLocalPort(8096, 120) > 0;
+                        h.post(new Runnable() {
+                            @Override
+                            public void run() {
+                                if (up && setupWizardOverlay != null) {
+                                    contentStack.removeView(setupWizardOverlay);
+                                    setupWizardOverlay = null;
+                                    if (targetUrl != null) webView.loadUrl(targetUrl);
+                                }
+                            }
+                        });
+                    }
+                }).start();
+
+                h.postDelayed(this, 1000L);
+            }
+        };
+        h.postDelayed(ticker, 500L);
+        return scroll;
     }
 
     private View buildRealJellyfinInstallerCard() {
@@ -466,7 +624,6 @@ public class WebWorkspaceActivity extends Activity {
         desc.setLayoutParams(dLp);
         card.addView(desc);
 
-        // Beginner Quick-Start Cheat Sheet inside card
         LinearLayout guideBox = new LinearLayout(this);
         guideBox.setOrientation(LinearLayout.VERTICAL);
         guideBox.setBackground(GlassTheme.createFrostedCard(this, 16f, false));
@@ -533,38 +690,7 @@ public class WebWorkspaceActivity extends Activity {
                 : new JellyfinEngineManager(this);
 
         final TextView btnAction = new TextView(this);
-        btnAction.setText(mgr.isInstalling() ? "Installing Jellyfin Engine..." : (mgr.isInstalled() ? "Boot Official Jellyfin Server →" : "Install & Start Real Jellyfin →"));
-        if (mgr.isInstalling()) {
-            btnAction.setEnabled(false);
-            installBar.setVisibility(View.VISIBLE);
-            mgr.attachListener(new JellyfinEngineManager.InstallProgressListener() {
-                @Override
-                public void onProgress(final int percent, final String statusText) {
-                    new Handler(Looper.getMainLooper()).post(new Runnable() {
-                        @Override
-                        public void run() {
-                            installBar.setIndeterminate(false);
-                            installBar.setProgress(percent);
-                            tvStatus.setText(statusText);
-                        }
-                    });
-                }
-                @Override
-                public void onComplete(final boolean success, final String message) {
-                    new Handler(Looper.getMainLooper()).post(new Runnable() {
-                        @Override
-                        public void run() {
-                            tvStatus.setText(message);
-                            if (success && setupWizardOverlay != null) {
-                                contentStack.removeView(setupWizardOverlay);
-                                setupWizardOverlay = null;
-                                if (targetUrl != null) webView.loadUrl(targetUrl);
-                            }
-                        }
-                    });
-                }
-            });
-        }
+        btnAction.setText(mgr.isInstalling() ? "Installing Jellyfin Engine..." : "Install & Start Real Jellyfin →");
         btnAction.setTextColor(GlassTheme.TEXT_PRIMARY);
         btnAction.setTextSize(15f);
         btnAction.setTypeface(Typeface.DEFAULT_BOLD);
@@ -579,65 +705,40 @@ public class WebWorkspaceActivity extends Activity {
             public void onClick(View v) {
                 btnAction.setEnabled(false);
                 installBar.setVisibility(View.VISIBLE);
-                if (mgr.isInstalled()) {
-                    installBar.setIndeterminate(true);
-                    tvStatus.setText("Starting Official Jellyfin Server on :8096...");
-                    new Thread(new Runnable() {
-                        @Override
-                        public void run() {
-                            mgr.startIfInstalled();
-                            for (int i = 0; i < 80; i++) {
-                                if (HardwareTelemetry.pingLocalPort(8096, 200) > 0) break;
-                                try { Thread.sleep(500L); } catch (Exception ignored) {}
+                btnAction.setText("Installing Jellyfin Engine...");
+                mgr.installOfficialJellyfinAsync(new JellyfinEngineManager.InstallProgressListener() {
+                    @Override
+                    public void onProgress(final int percent, final String statusText) {
+                        new Handler(Looper.getMainLooper()).post(new Runnable() {
+                            @Override
+                            public void run() {
+                                installBar.setIndeterminate(false);
+                                installBar.setProgress(percent);
+                                tvStatus.setText(statusText);
                             }
-                            new Handler(Looper.getMainLooper()).post(new Runnable() {
-                                @Override
-                                public void run() {
+                        });
+                    }
+
+                    @Override
+                    public void onComplete(final boolean success, final String message) {
+                        new Handler(Looper.getMainLooper()).post(new Runnable() {
+                            @Override
+                            public void run() {
+                                tvStatus.setText(message);
+                                if (success) {
                                     if (setupWizardOverlay != null) {
                                         contentStack.removeView(setupWizardOverlay);
                                         setupWizardOverlay = null;
                                     }
                                     if (targetUrl != null) webView.loadUrl(targetUrl);
+                                } else {
+                                    btnAction.setEnabled(true);
+                                    btnAction.setText("Retry Jellyfin Install");
                                 }
-                            });
-                        }
-                    }).start();
-                } else {
-                    btnAction.setText("Installing Jellyfin Engine...");
-                    mgr.installOfficialJellyfinAsync(new JellyfinEngineManager.InstallProgressListener() {
-                        @Override
-                        public void onProgress(final int percent, final String statusText) {
-                            new Handler(Looper.getMainLooper()).post(new Runnable() {
-                                @Override
-                                public void run() {
-                                    installBar.setIndeterminate(false);
-                                    installBar.setProgress(percent);
-                                    tvStatus.setText(statusText);
-                                }
-                            });
-                        }
-
-                        @Override
-                        public void onComplete(final boolean success, final String message) {
-                            new Handler(Looper.getMainLooper()).post(new Runnable() {
-                                @Override
-                                public void run() {
-                                    tvStatus.setText(message);
-                                    if (success) {
-                                        if (setupWizardOverlay != null) {
-                                            contentStack.removeView(setupWizardOverlay);
-                                            setupWizardOverlay = null;
-                                        }
-                                        if (targetUrl != null) webView.loadUrl(targetUrl);
-                                    } else {
-                                        btnAction.setEnabled(true);
-                                        btnAction.setText("Retry Jellyfin Install");
-                                    }
-                                }
-                            });
-                        }
-                    });
-                }
+                            }
+                        });
+                    }
+                });
             }
         });
 

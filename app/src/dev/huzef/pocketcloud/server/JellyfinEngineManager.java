@@ -28,8 +28,13 @@ public class JellyfinEngineManager {
     private Process jellyfinProcess;
     private volatile boolean installing = false;
     private volatile int currentPercent = 0;
-    private volatile String currentStatus = "";
+    private volatile String currentStatus = "Initializing...";
+    private volatile String lastProcessLine = "";
     private volatile InstallProgressListener activeListener;
+
+    public String getLastProcessLine() {
+        return lastProcessLine;
+    }
 
     public JellyfinEngineManager(Context context) {
         this.context = context.getApplicationContext();
@@ -188,6 +193,8 @@ public class JellyfinEngineManager {
             if (prootBin.exists() && rootfs.exists()) {
                 cmd.add(prootBin.getAbsolutePath());
                 cmd.add("-0");
+                cmd.add("-k");
+                cmd.add("5.10.0");
                 cmd.add("-r");
                 cmd.add(rootfs.getAbsolutePath());
                 cmd.add("-b");
@@ -250,6 +257,9 @@ public class JellyfinEngineManager {
             pb.environment().put("PROOT_NO_SECCOMP", "1");
             pb.environment().put("DOTNET_SYSTEM_GLOBALIZATION_INVARIANT", "1");
             pb.environment().put("DOTNET_EnableWriteXorExecute", "0");
+            pb.environment().put("DOTNET_EnableIoUring", "0");
+            pb.environment().put("DOTNET_GCHeapHardLimit", "300000000");
+            pb.environment().put("COMPlus_EnableDiagnostics", "0");
             String nativeDir = context.getApplicationInfo().nativeLibraryDir;
             pb.environment().put("LD_LIBRARY_PATH", nativeDir + ":/usr/lib/aarch64-linux-gnu:/lib/aarch64-linux-gnu:/usr/lib:/lib:/jf_engine");
             pb.environment().put("JELLYFIN_PublishedServerUrl", "http://" + HardwareTelemetry.detectLocalIpv4() + ":8096");
@@ -588,6 +598,7 @@ public class JellyfinEngineManager {
                     BufferedReader br = new BufferedReader(new InputStreamReader(p.getInputStream()));
                     String line;
                     while ((line = br.readLine()) != null) {
+                        lastProcessLine = line;
                         PocketCloudService.appendLog("[8096] " + line);
                     }
                 } catch (Exception ignored) {}
