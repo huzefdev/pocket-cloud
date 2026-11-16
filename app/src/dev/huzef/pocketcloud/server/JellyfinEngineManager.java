@@ -196,37 +196,46 @@ public class JellyfinEngineManager {
     }
 
     private String resolveLatestJellyfinArm64TarUrl() {
-        // 1. Scrape official repo.jellyfin.org latest-stable/arm64 directory index for exact live filename
-        String baseDir = "https://repo.jellyfin.org/files/server/linux/latest-stable/arm64/";
-        try {
-            HttpURLConnection conn = (HttpURLConnection) new URL(baseDir).openConnection();
-            conn.setRequestProperty("User-Agent", "Mozilla/5.0");
-            conn.setConnectTimeout(12000);
-            conn.setReadTimeout(12000);
-            BufferedReader br = new BufferedReader(new InputStreamReader(conn.getInputStream()));
-            StringBuilder html = new StringBuilder();
-            String line;
-            while ((line = br.readLine()) != null) html.append(line);
-            br.close();
-            conn.disconnect();
+        String[] indexPages = new String[]{
+                "https://repo.jellyfin.org/files/server/portable/latest-stable/arm64/",
+                "https://repo.jellyfin.org/files/server/linux/latest-stable/arm64/"
+        };
+        for (String baseDir : indexPages) {
+            try {
+                HttpURLConnection conn = (HttpURLConnection) new URL(baseDir).openConnection();
+                conn.setRequestProperty("User-Agent", "Mozilla/5.0");
+                conn.setConnectTimeout(10000);
+                conn.setReadTimeout(10000);
+                if (conn.getResponseCode() == 200) {
+                    BufferedReader br = new BufferedReader(new InputStreamReader(conn.getInputStream()));
+                    StringBuilder html = new StringBuilder();
+                    String line;
+                    while ((line = br.readLine()) != null) html.append(line);
+                    br.close();
+                    String page = html.toString();
+                    int pos = 0;
+                    String foundFile = null;
+                    while ((pos = page.indexOf("href=\"", pos)) != -1) {
+                        int qStart = pos + 6;
+                        int qEnd = page.indexOf("\"", qStart);
+                        if (qEnd > qStart) {
+                            String href = page.substring(qStart, qEnd);
+                            if (href.startsWith("jellyfin") && href.contains("arm64") && href.endsWith(".tar.gz")) {
+                                foundFile = href;
+                            }
+                        }
+                        pos = qStart;
+                    }
+                    if (foundFile != null) return baseDir + foundFile;
+                }
+                conn.disconnect();
+            } catch (Exception ignored) {}
+        }
 
-            java.util.regex.Matcher m = java.util.regex.Pattern
-                    .compile("href=\"(jellyfin_[0-9]+\\.[0-9]+\\.[0-9]+[-_]arm64\\.tar\\.gz)\"")
-                    .matcher(html.toString());
-            String latestMatch = null;
-            while (m.find()) {
-                latestMatch = m.group(1);
-            }
-            if (latestMatch != null) {
-                return baseDir + latestMatch;
-            }
-        } catch (Exception ignored) {}
-
-        // 2. Fallback to GitHub Releases API
         try {
             URL api = new URL("https://api.github.com/repos/jellyfin/jellyfin/releases/latest");
             HttpURLConnection conn = (HttpURLConnection) api.openConnection();
-            conn.setRequestProperty("User-Agent", "PocketCloud-Android");
+            conn.setRequestProperty("User-Agent", "Mozilla/5.0");
             conn.setConnectTimeout(12000);
             conn.setReadTimeout(12000);
             BufferedReader br = new BufferedReader(new InputStreamReader(conn.getInputStream()));
@@ -234,8 +243,6 @@ public class JellyfinEngineManager {
             String line;
             while ((line = br.readLine()) != null) sb.append(line);
             br.close();
-            conn.disconnect();
-
             JSONObject rel = new JSONObject(sb.toString());
             JSONArray assets = rel.getJSONArray("assets");
             for (int i = 0; i < assets.length(); i++) {
@@ -247,7 +254,7 @@ public class JellyfinEngineManager {
             }
         } catch (Exception ignored) {}
 
-        return baseDir + "jellyfin_10.10.7-arm64.tar.gz";
+        return "https://repo.jellyfin.org/files/server/linux/latest-stable/arm64/jellyfin_12.4-arm64.tar.gz";
     }
 
     private void downloadWithProgress(String urlStr, File dest, int startPct, int endPct, String label, InstallProgressListener listener) throws Exception {
