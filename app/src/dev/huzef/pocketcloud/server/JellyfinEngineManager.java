@@ -191,18 +191,28 @@ public class JellyfinEngineManager {
         try {
             java.util.List<String> cmd = new java.util.ArrayList<String>();
             if (prootBin.exists() && rootfs.exists()) {
+                new File(rootfs, "dev").mkdirs();
+                new File(rootfs, "proc").mkdirs();
+                new File(rootfs, "sys").mkdirs();
+                new File(rootfs, "media").mkdirs();
+                new File(rootfs, "jf_engine").mkdirs();
+                new File(rootfs, "tmp").mkdirs();
+
                 cmd.add(prootBin.getAbsolutePath());
+                cmd.add("--kill-on-exit");
                 cmd.add("-0");
                 cmd.add("-k");
                 cmd.add("5.10.0");
                 cmd.add("-r");
                 cmd.add(rootfs.getAbsolutePath());
                 cmd.add("-b");
-                cmd.add("/dev");
+                cmd.add("/dev:/dev");
                 cmd.add("-b");
-                cmd.add("/proc");
+                cmd.add("/proc:/proc");
                 cmd.add("-b");
-                cmd.add("/sys");
+                cmd.add("/sys:/sys");
+                cmd.add("-b");
+                cmd.add(tmpDir.getAbsolutePath() + ":/tmp");
                 cmd.add("-b");
                 cmd.add(dir.getAbsolutePath() + ":/jf_engine");
                 cmd.add("-b");
@@ -598,7 +608,9 @@ public class JellyfinEngineManager {
                     BufferedReader br = new BufferedReader(new InputStreamReader(p.getInputStream()));
                     String line;
                     while ((line = br.readLine()) != null) {
-                        lastProcessLine = line;
+                        if (!line.contains("--help")) {
+                            lastProcessLine = line;
+                        }
                         PocketCloudService.appendLog("[8096] " + line);
                     }
                 } catch (Exception ignored) {}
