@@ -86,6 +86,14 @@ public class JellyfinEngineManager {
                 fos.write("root:x:0:0:root:/jf_engine:/bin/sh\n".getBytes("UTF-8"));
                 fos.close();
             }
+            File fontsDir = new File(etc, "fonts");
+            fontsDir.mkdirs();
+            File fontsConf = new File(fontsDir, "fonts.conf");
+            if (!fontsConf.exists()) {
+                FileOutputStream fos = new FileOutputStream(fontsConf);
+                fos.write("<?xml version=\"1.0\"?><!DOCTYPE fontconfig SYSTEM \"urn:fontconfig:fonts.dtd\"><fontconfig><dir>/system/fonts</dir><cachedir>/tmp/fontconfig</cachedir></fontconfig>\n".getBytes("UTF-8"));
+                fos.close();
+            }
         } catch (Exception ignored) {}
     }
 
@@ -154,8 +162,8 @@ public class JellyfinEngineManager {
     private boolean ensureGlibcRootfs(File dir, InstallProgressListener listener) {
         File rootfs = new File(dir, "rootfs");
         File targetLd = new File(rootfs, "lib/ld-linux-aarch64.so.1");
-        File targetFc = new File(rootfs, "lib/libfontconfig.so.1");
-        if (targetLd.exists() && targetLd.length() > 10000 && targetFc.exists() && targetFc.length() > 50000) {
+        File targetIcu = new File(rootfs, "lib/libicuuc.so.72");
+        if (targetLd.exists() && targetLd.length() > 10000 && targetIcu.exists() && targetIcu.length() > 100000) {
             return true;
         }
         try {
@@ -373,7 +381,9 @@ public class JellyfinEngineManager {
             }
             pb.environment().put("PROOT_TMP_DIR", tmpDir.getAbsolutePath());
             pb.environment().put("PROOT_NO_SECCOMP", "1");
-            pb.environment().put("DOTNET_SYSTEM_GLOBALIZATION_INVARIANT", "1");
+            pb.environment().put("DOTNET_SYSTEM_GLOBALIZATION_INVARIANT", "0");
+            pb.environment().put("DOTNET_SYSTEM_GLOBALIZATION_USENLS", "0");
+            pb.environment().put("FONTCONFIG_FILE", "/etc/fonts/fonts.conf");
             pb.environment().put("DOTNET_EnableWriteXorExecute", "0");
             pb.environment().put("DOTNET_EnableIoUring", "0");
             pb.environment().put("DOTNET_GCHeapHardLimit", "300000000");
