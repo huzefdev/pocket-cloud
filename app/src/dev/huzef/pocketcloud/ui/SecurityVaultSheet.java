@@ -318,8 +318,22 @@ public class SecurityVaultSheet {
             eLp.topMargin = GlassTheme.dp(activity, 10);
             editRow.setLayoutParams(eLp);
 
+            final EditText etNewUser = new EditText(activity);
+            etNewUser.setText(cred.configured ? cred.username : (port == 8384 ? "pocketadmin" : "admin"));
+            etNewUser.setHint("User");
+            etNewUser.setHintTextColor(GlassTheme.TEXT_MUTED);
+            etNewUser.setTextColor(Color.WHITE);
+            etNewUser.setTextSize(11.5f);
+            etNewUser.setSingleLine(true);
+            etNewUser.setPadding(GlassTheme.dp(activity, 8), GlassTheme.dp(activity, 7), GlassTheme.dp(activity, 8), GlassTheme.dp(activity, 7));
+            etNewUser.setBackground(GlassTheme.createPillButton(activity, Color.parseColor("#12141C"), GlassTheme.BORDER_SUBTLE));
+            LinearLayout.LayoutParams euLp = new LinearLayout.LayoutParams(GlassTheme.dp(activity, 78), ViewGroup.LayoutParams.WRAP_CONTENT);
+            euLp.rightMargin = GlassTheme.dp(activity, 5);
+            etNewUser.setLayoutParams(euLp);
+            editRow.addView(etNewUser);
+
             final EditText etNewPass = new EditText(activity);
-            etNewPass.setHint("New password...");
+            etNewPass.setHint("New pass...");
             etNewPass.setHintTextColor(GlassTheme.TEXT_MUTED);
             etNewPass.setTextColor(Color.WHITE);
             etNewPass.setTextSize(12f);
@@ -347,7 +361,8 @@ public class SecurityVaultSheet {
                         Toast.makeText(activity, "Enter at least 4 characters", Toast.LENGTH_SHORT).show();
                         return;
                     }
-                    SecurityVaultManager.saveCredential(activity, port, cred.username, np, true);
+                    String nu = etNewUser.getText().toString().trim();
+                    SecurityVaultManager.saveCredential(activity, port, nu.isEmpty() ? cred.username : nu, np, true);
                     Toast.makeText(activity, "Password updated & synced to :" + port, Toast.LENGTH_SHORT).show();
                     refreshSelf.run();
                 }
