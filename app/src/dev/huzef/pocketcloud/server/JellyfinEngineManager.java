@@ -89,31 +89,31 @@ public class JellyfinEngineManager {
             File sslDir = new File(etc, "ssl/certs");
             sslDir.mkdirs();
             File caBundle = new File(sslDir, "ca-certificates.crt");
-            if (!caBundle.exists() || caBundle.length() < 4096) {
-                File sysCacerts = new File("/system/etc/security/cacerts");
-                if (sysCacerts.exists() && sysCacerts.isDirectory()) {
-                    FileOutputStream cafos = new FileOutputStream(caBundle);
-                    File[] certs = sysCacerts.listFiles();
-                    if (certs != null) {
-                        byte[] cbuf = new byte[8192];
-                        for (File cf : certs) {
-                            if (!cf.isFile()) continue;
-                            try {
-                                FileInputStream cfis = new FileInputStream(cf);
-                                String header = new String(cbuf, 0, Math.min(64, cfis.read(cbuf)), "UTF-8");
-                                cfis.close();
-                                if (header.contains("BEGIN CERTIFICATE")) {
-                                    FileInputStream fullIn = new FileInputStream(cf);
-                                    int r;
-                                    while ((r = fullIn.read(cbuf)) != -1) cafos.write(cbuf, 0, r);
-                                    fullIn.close();
-                                    cafos.write("\n".getBytes("UTF-8"));
-                                }
-                            } catch (Exception ignored) {}
+            try {
+                javax.net.ssl.TrustManagerFactory tmf = javax.net.ssl.TrustManagerFactory.getInstance(
+                        javax.net.ssl.TrustManagerFactory.getDefaultAlgorithm());
+                tmf.init((java.security.KeyStore) null);
+                FileOutputStream cafos = new FileOutputStream(caBundle, false);
+                int certCount = 0;
+                for (javax.net.ssl.TrustManager tm : tmf.getTrustManagers()) {
+                    if (tm instanceof javax.net.ssl.X509TrustManager) {
+                        java.security.cert.X509Certificate[] issuers = ((javax.net.ssl.X509TrustManager) tm).getAcceptedIssuers();
+                        for (java.security.cert.X509Certificate cert : issuers) {
+                            String b64 = android.util.Base64.encodeToString(cert.getEncoded(), android.util.Base64.NO_WRAP);
+                            cafos.write("-----BEGIN CERTIFICATE-----\n".getBytes("UTF-8"));
+                            for (int idx = 0; idx < b64.length(); idx += 64) {
+                                int end = Math.min(idx + 64, b64.length());
+                                cafos.write((b64.substring(idx, end) + "\n").getBytes("UTF-8"));
+                            }
+                            cafos.write("-----END CERTIFICATE-----\n".getBytes("UTF-8"));
+                            certCount++;
                         }
                     }
-                    cafos.close();
                 }
+                cafos.close();
+                PocketCloudService.appendLog("[8096] Exported " + certCount + " Android Root CAs (" + caBundle.length() + " bytes)");
+            } catch (Exception caEx) {
+                PocketCloudService.appendLog("[8096] CA Export err: " + caEx.getMessage());
             }
             File fontsDir = new File(etc, "fonts");
             fontsDir.mkdirs();
@@ -430,6 +430,9 @@ public class JellyfinEngineManager {
             pb.environment().put("PROOT_TMP_DIR", tmpDir.getAbsolutePath());
             pb.environment().put("PROOT_NO_SECCOMP", "1");
             pb.environment().put("DOTNET_SYSTEM_GLOBALIZATION_INVARIANT", "0");
+            pb.environment().put("SSL_CERT_FILE", "/etc/ssl/certs/ca-certificates.crt");
+            pb.environment().put("SSL_CERT_DIR", "/etc/ssl/certs");
+            pb.environment().put("CURL_CA_BUNDLE", "/etc/ssl/certs/ca-certificates.crt");
             pb.environment().put("DOTNET_SYSTEM_GLOBALIZATION_USENLS", "0");
             pb.environment().put("FONTCONFIG_FILE", "/etc/fonts/fonts.conf");
             pb.environment().put("DOTNET_EnableWriteXorExecute", "0");
