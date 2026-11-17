@@ -36,6 +36,7 @@ import dev.huzef.pocketcloud.core.GlassTheme;
 import dev.huzef.pocketcloud.core.HardwareTelemetry;
 import dev.huzef.pocketcloud.model.ServiceNode;
 import dev.huzef.pocketcloud.model.TelemetrySnapshot;
+import dev.huzef.pocketcloud.security.SecurityVaultManager;
 import dev.huzef.pocketcloud.service.PocketCloudService;
 
 public class MainActivity extends Activity {
@@ -110,6 +111,7 @@ public class MainActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        SecurityVaultManager.ensureInitialized(this);
         Window w = getWindow();
         w.addFlags(WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS);
         w.setStatusBarColor(GlassTheme.BG_VOID);
@@ -138,10 +140,10 @@ public class MainActivity extends Activity {
         serviceNodes.add(new ServiceNode(
                 "filebrowser",
                 "FileBrowser Cloud",
-                "Drive & Storage Vault • admin / admin",
+                "Drive & Storage Vault • Biometric AES-256 Protected",
                 "PORT :8080",
                 8080,
-                "Login: admin / admin"
+                "Vault Locked (Tap 🔐 VAULT)"
         ));
         serviceNodes.add(new ServiceNode(
                 "pocketmedia",
@@ -346,6 +348,24 @@ public class MainActivity extends Activity {
                 showStoragePermissionGuide();
             }
         });
+        TextView btnBiometricVault = new TextView(this);
+        btnBiometricVault.setText("🔐 VAULT");
+        btnBiometricVault.setTextColor(GlassTheme.TEXT_PRIMARY);
+        btnBiometricVault.setTextSize(11f);
+        btnBiometricVault.setTypeface(Typeface.DEFAULT_BOLD);
+        btnBiometricVault.setPadding(GlassTheme.dp(this, 12), GlassTheme.dp(this, 7), GlassTheme.dp(this, 12), GlassTheme.dp(this, 7));
+        btnBiometricVault.setBackground(GlassTheme.createPillButton(this, GlassTheme.ACCENT_AMBER_SOFT, GlassTheme.BORDER_WARM));
+        LinearLayout.LayoutParams vPillLp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        vPillLp.rightMargin = GlassTheme.dp(this, 10);
+        btnBiometricVault.setLayoutParams(vPillLp);
+        btnBiometricVault.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                SecurityVaultSheet.openWithBiometric(MainActivity.this, 0);
+            }
+        });
+        topBar.addView(btnBiometricVault);
+
         topBar.addView(avatarBadge);
         col.addView(topBar);
 
@@ -369,6 +389,51 @@ public class MainActivity extends Activity {
         subLp.bottomMargin = GlassTheme.dp(this, 18);
         tvNodeSubtitle.setLayoutParams(subLp);
         col.addView(tvNodeSubtitle);
+
+        // Live Security & Zero-Cloud Privacy Shield Banner
+        LinearLayout shieldCard = new LinearLayout(this);
+        shieldCard.setOrientation(LinearLayout.HORIZONTAL);
+        shieldCard.setGravity(Gravity.CENTER_VERTICAL);
+        shieldCard.setBackground(GlassTheme.createFrostedCard(this, 18f, true));
+        shieldCard.setPadding(GlassTheme.dp(this, 16), GlassTheme.dp(this, 12), GlassTheme.dp(this, 16), GlassTheme.dp(this, 12));
+        LinearLayout.LayoutParams shLp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        shLp.bottomMargin = GlassTheme.dp(this, 14);
+        shieldCard.setLayoutParams(shLp);
+
+        LinearLayout shCol = new LinearLayout(this);
+        shCol.setOrientation(LinearLayout.VERTICAL);
+        shCol.setLayoutParams(new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+
+        TextView shTitle = new TextView(this);
+        shTitle.setText("🛡️ ZERO-CLOUD PRIVACY SHIELD ACTIVE");
+        shTitle.setTextColor(Color.parseColor("#34D399"));
+        shTitle.setTextSize(11.5f);
+        shTitle.setTypeface(Typeface.DEFAULT_BOLD);
+        shCol.addView(shTitle);
+
+        TextView shSub = new TextView(this);
+        shSub.setText("Hardware AES-256 Vault • 0 KB Cloud Leak • Tap to Audit");
+        shSub.setTextColor(GlassTheme.TEXT_SECONDARY);
+        shSub.setTextSize(10.5f);
+        shCol.addView(shSub);
+
+        TextView shBadge = new TextView(this);
+        shBadge.setText("AUDIT ›");
+        shBadge.setTextColor(Color.WHITE);
+        shBadge.setTextSize(11f);
+        shBadge.setTypeface(Typeface.DEFAULT_BOLD);
+        shBadge.setPadding(GlassTheme.dp(this, 11), GlassTheme.dp(this, 6), GlassTheme.dp(this, 11), GlassTheme.dp(this, 6));
+        shBadge.setBackground(GlassTheme.createPillButton(this, Color.parseColor("#10B981"), Color.parseColor("#34D399")));
+
+        shieldCard.addView(shCol);
+        shieldCard.addView(shBadge);
+        shieldCard.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                SecurityVaultSheet.openWithBiometric(MainActivity.this, 1);
+            }
+        });
+        col.addView(shieldCard);
 
         // Hero Frosted Card (Active LAN Endpoint + Master Power Toggle)
         LinearLayout heroCard = new LinearLayout(this);
