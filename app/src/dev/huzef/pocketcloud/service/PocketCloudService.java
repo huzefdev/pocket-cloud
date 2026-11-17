@@ -33,6 +33,9 @@ public class PocketCloudService extends Service {
 
     public static final String ACTION_START_ENGINE = "dev.huzef.pocketcloud.START_ENGINE";
     public static final String ACTION_STOP_ENGINE = "dev.huzef.pocketcloud.STOP_ENGINE";
+    public static final String ACTION_START_PORT = "dev.huzef.pocketcloud.START_PORT";
+    public static final String ACTION_STOP_PORT = "dev.huzef.pocketcloud.STOP_PORT";
+    public static final String EXTRA_PORT = "port";
     public static final String ACTION_REINIT_FILEBROWSER = "dev.huzef.pocketcloud.REINIT_FB";
     private static final String CHANNEL_ID = "pocketcloud_engine_channel";
     private static final int NOTIF_ID = 8080;
@@ -89,9 +92,20 @@ public class PocketCloudService extends Service {
             return START_STICKY;
         }
 
+        if (ACTION_START_PORT.equals(action)) {
+            final int port = intent != null ? intent.getIntExtra(EXTRA_PORT, 0) : 0;
+            startForeground(NOTIF_ID, buildNotification("PocketCloud Node Active • Port :" + port));
+            startSingleDaemon(port);
+            return START_NOT_STICKY;
+        }
+        if (ACTION_STOP_PORT.equals(action)) {
+            final int port = intent != null ? intent.getIntExtra(EXTRA_PORT, 0) : 0;
+            stopSingleDaemon(port);
+            return START_NOT_STICKY;
+        }
         startForeground(NOTIF_ID, buildNotification("Booting Bare-Metal Cloud Daemons..."));
         startAllDaemons();
-        return START_STICKY;
+        return START_NOT_STICKY;
     }
 
     private File resolveNativeBinary(String libName) {
@@ -439,6 +453,43 @@ public class PocketCloudService extends Service {
                 } catch (Exception ignored) {}
             }
         }).start();
+    }
+
+    public void startSingleDaemon(final int port) {
+        isEngineActive = true;
+        acquireWakeLock();
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                appendLog("[NODE] Starting standalone service on :" + port + "...");
+                if (port == 8080) startNativeFileBrowser(false);
+                else if (port == 8096 && jellyfinManager != null) jellyfinManager.startIfInstalled();
+                else if (port == 8384) startNativeSyncthing();
+                startForeground(NOTIF_ID, buildNotification("PocketCloud Node Active"));
+            }
+        }, "PocketCloud-Port-" + port).start();
+    }
+
+    public void stopSingleDaemon(int port) {
+        appendLog("[NODE] Stopping service on :" + port + "...");
+        stopEngineForPasswordUpdate(port);
+        if (HardwareTelemetry.pingLocalPort(8080, 80) <= 0
+                && HardwareTelemetry.pingLocalPort(8096, 80) <= 0
+                && HardwareTelemetry.pingLocalPort(8384, 80) <= 0) {
+            isEngineActive = false;
+            releaseWakeLock();
+            stopForeground(true);
+            stopSelf();
+        }
+    }
+
+    @Override
+    public void onTaskRemoved(Intent rootIntent) {
+        appendLog("[SYS] App closed from recents — terminating all daemons...");
+        stopAllDaemons();
+        stopForeground(true);
+        stopSelf();
+        super.onTaskRemoved(rootIntent);
     }
 
     @Override

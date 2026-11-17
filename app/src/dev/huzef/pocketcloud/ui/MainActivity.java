@@ -112,6 +112,12 @@ public class MainActivity extends Activity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         SecurityVaultManager.ensureInitialized(this);
+        if (!PocketCloudService.isEngineActive) {
+            try {
+                Runtime.getRuntime().exec(new String[]{"pkill", "-9", "-f", "libsyncthing.so"});
+                Runtime.getRuntime().exec(new String[]{"pkill", "-9", "-f", "libfilebrowser.so"});
+            } catch (Exception ignored) {}
+        }
         Window w = getWindow();
         w.addFlags(WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS);
         w.setStatusBarColor(GlassTheme.BG_VOID);
@@ -287,6 +293,12 @@ public class MainActivity extends Activity {
     }
 
     private void switchTab(int index) {
+        if (tabContentContainer != null) {
+            android.transition.TransitionManager.beginDelayedTransition(
+                    tabContentContainer,
+                    new android.transition.Fade(android.transition.Fade.IN).setDuration(220)
+            );
+        }
         activeTab = index;
         for (int i = 0; i < navIcons.length; i++) {
             boolean selected = (i == index);
@@ -345,11 +357,17 @@ public class MainActivity extends Activity {
         avatarBadge.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                showStoragePermissionGuide();
+                v.animate().scaleX(0.92f).scaleY(0.92f).setDuration(90).withEndAction(new Runnable() {
+                    @Override
+                    public void run() {
+                        v.animate().scaleX(1f).scaleY(1f).setDuration(120).start();
+                        showNodeControlHub();
+                    }
+                }).start();
             }
         });
         TextView btnBiometricVault = new TextView(this);
-        btnBiometricVault.setText("🔐 VAULT");
+        btnBiometricVault.setText("VAULT");
         btnBiometricVault.setTextColor(GlassTheme.TEXT_PRIMARY);
         btnBiometricVault.setTextSize(11f);
         btnBiometricVault.setTypeface(Typeface.DEFAULT_BOLD);
@@ -405,7 +423,7 @@ public class MainActivity extends Activity {
         shCol.setLayoutParams(new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
 
         TextView shTitle = new TextView(this);
-        shTitle.setText("🛡️ ZERO-CLOUD PRIVACY SHIELD ACTIVE");
+        shTitle.setText("ZERO-CLOUD PRIVACY SHIELD  •  ACTIVE");
         shTitle.setTextColor(Color.parseColor("#34D399"));
         shTitle.setTextSize(11.5f);
         shTitle.setTypeface(Typeface.DEFAULT_BOLD);
@@ -418,7 +436,7 @@ public class MainActivity extends Activity {
         shCol.addView(shSub);
 
         TextView shBadge = new TextView(this);
-        shBadge.setText("AUDIT ›");
+        shBadge.setText("INSPECT");
         shBadge.setTextColor(Color.WHITE);
         shBadge.setTextSize(11f);
         shBadge.setTypeface(Typeface.DEFAULT_BOLD);
@@ -501,7 +519,7 @@ public class MainActivity extends Activity {
         heroActions.addView(spacer);
 
         tvEngineToggleBtn = new TextView(this);
-        tvEngineToggleBtn.setText("BOOT ENGINE");
+        tvEngineToggleBtn.setText("BOOT ALL");
         tvEngineToggleBtn.setTextColor(GlassTheme.TEXT_PRIMARY);
         tvEngineToggleBtn.setTextSize(12f);
         tvEngineToggleBtn.setTypeface(Typeface.DEFAULT_BOLD);
@@ -676,7 +694,7 @@ public class MainActivity extends Activity {
         topRow.addView(tvHeader);
 
         TextView btnStartAll = new TextView(this);
-        btnStartAll.setText("⚡");
+        btnStartAll.setText("ALL");
         btnStartAll.setTextColor(GlassTheme.BG_VOID);
         btnStartAll.setTextSize(15f);
         btnStartAll.setGravity(Gravity.CENTER);
@@ -831,11 +849,36 @@ public class MainActivity extends Activity {
             tvState.setLayoutParams(new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
             bottomLine.addView(tvState);
 
+            TextView btnPower = new TextView(this);
+            btnPower.setText(node.online ? "STOP" : "START");
+            btnPower.setTextColor(Color.WHITE);
+            btnPower.setTextSize(10.5f);
+            btnPower.setTypeface(Typeface.DEFAULT_BOLD);
+            btnPower.setPadding(GlassTheme.dp(this, 11), GlassTheme.dp(this, 6), GlassTheme.dp(this, 11), GlassTheme.dp(this, 6));
+            btnPower.setBackground(GlassTheme.createPillButton(
+                    this,
+                    node.online ? Color.parseColor("#DC2626") : Color.parseColor("#10B981"),
+                    node.online ? Color.parseColor("#F87171") : Color.parseColor("#34D399")
+            ));
+            LinearLayout.LayoutParams pwrLp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+            pwrLp.rightMargin = GlassTheme.dp(this, 8);
+            btnPower.setLayoutParams(pwrLp);
+            btnPower.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    selectedPortFocus = node.port;
+                    toggleSinglePort(node.port, !node.online);
+                }
+            });
+            bottomLine.addView(btnPower);
+
             TextView tvOpen = new TextView(this);
-            tvOpen.setText("OPEN UI →");
+            tvOpen.setText("OPEN");
             tvOpen.setTextColor(GlassTheme.TEXT_PRIMARY);
-            tvOpen.setTextSize(11f);
+            tvOpen.setTextSize(10.5f);
             tvOpen.setTypeface(Typeface.DEFAULT_BOLD);
+            tvOpen.setPadding(GlassTheme.dp(this, 11), GlassTheme.dp(this, 6), GlassTheme.dp(this, 11), GlassTheme.dp(this, 6));
+            tvOpen.setBackground(GlassTheme.createPillButton(this, Color.parseColor("#242936"), GlassTheme.BORDER_SUBTLE));
             bottomLine.addView(tvOpen);
 
             card.addView(bottomLine);
@@ -844,8 +887,8 @@ public class MainActivity extends Activity {
                 @Override
                 public void onClick(View v) {
                     selectedPortFocus = node.port;
-                    if (!PocketCloudService.isEngineActive) {
-                        toggleCloudEngine(true);
+                    if (!node.online) {
+                        toggleSinglePort(node.port, true);
                     }
                     String targetUrl = "http://127.0.0.1:" + node.port;
                     Intent i = new Intent(MainActivity.this, WebWorkspaceActivity.class);
@@ -853,6 +896,7 @@ public class MainActivity extends Activity {
                     i.putExtra(WebWorkspaceActivity.EXTRA_URL, targetUrl);
                     i.putExtra(WebWorkspaceActivity.EXTRA_HINT, node.credentialsHint);
                     startActivity(i);
+                    overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out);
                 }
             });
 
@@ -995,7 +1039,7 @@ public class MainActivity extends Activity {
             tvHeroStatusPill.setTextColor(s.engineRunning ? GlassTheme.EMERALD_LIVE : GlassTheme.ROSE_OFFLINE);
         }
         if (tvEngineToggleBtn != null) {
-            tvEngineToggleBtn.setText(s.engineRunning ? "STOP ENGINE" : "BOOT ENGINE");
+            tvEngineToggleBtn.setText(s.engineRunning ? "STOP ALL" : "BOOT ALL");
             tvEngineToggleBtn.setBackground(GlassTheme.createPillButton(
                     this,
                     s.engineRunning ? Color.parseColor("#2EE11D48") : GlassTheme.ACCENT_AMBER,
@@ -1094,4 +1138,108 @@ public class MainActivity extends Activity {
         uiHandler.removeCallbacks(telemetryLoop);
         super.onPause();
     }
+
+    private void toggleSinglePort(int port, boolean start) {
+        Intent svc = new Intent(this, PocketCloudService.class);
+        svc.setAction(start ? PocketCloudService.ACTION_START_PORT : PocketCloudService.ACTION_STOP_PORT);
+        svc.putExtra(PocketCloudService.EXTRA_PORT, port);
+        if (start && android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+            startForegroundService(svc);
+        } else {
+            startService(svc);
+        }
+        android.widget.Toast.makeText(
+                this,
+                (start ? "Starting :" : "Stopping :") + port + "...",
+                android.widget.Toast.LENGTH_SHORT
+        ).show();
+    }
+
+    private void showNodeControlHub() {
+        final android.app.Dialog d = new android.app.Dialog(this);
+        d.requestWindowFeature(android.view.Window.FEATURE_NO_TITLE);
+        if (d.getWindow() != null) {
+            d.getWindow().setBackgroundDrawable(new android.graphics.drawable.ColorDrawable(Color.TRANSPARENT));
+        }
+
+        LinearLayout card = new LinearLayout(this);
+        card.setOrientation(LinearLayout.VERTICAL);
+        card.setPadding(GlassTheme.dp(this, 20), GlassTheme.dp(this, 20), GlassTheme.dp(this, 20), GlassTheme.dp(this, 20));
+        card.setBackground(GlassTheme.createFrostedCard(this, 24f, true));
+
+        TextView title = new TextView(this);
+        title.setText("POCKET-CLOUD-01  //  NODE CONTROL");
+        title.setTextColor(GlassTheme.TEXT_PRIMARY);
+        title.setTextSize(14.5f);
+        title.setTypeface(Typeface.DEFAULT_BOLD);
+        card.addView(title);
+
+        TextView sub = new TextView(this);
+        sub.setText("Local Bare-Metal Runtime • Auto-Terminates on App Close");
+        sub.setTextColor(GlassTheme.ACCENT_AMBER_GLOW);
+        sub.setTextSize(11f);
+        LinearLayout.LayoutParams sLp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        sLp.topMargin = GlassTheme.dp(this, 4);
+        sLp.bottomMargin = GlassTheme.dp(this, 14);
+        sub.setLayoutParams(sLp);
+        card.addView(sub);
+
+        String[][] rows = new String[][]{
+                {"Storage & Media Access", "CONFIGURE", "storage"},
+                {"Biometric Credential Vault", "OPEN", "vault"},
+                {"Zero-Cloud Network Audit", "INSPECT", "audit"},
+                {"Terminate All Active Ports", "STOP ALL", "kill"}
+        };
+
+        for (final String[] r : rows) {
+            LinearLayout row = new LinearLayout(this);
+            row.setOrientation(LinearLayout.HORIZONTAL);
+            row.setGravity(Gravity.CENTER_VERTICAL);
+            row.setPadding(GlassTheme.dp(this, 14), GlassTheme.dp(this, 12), GlassTheme.dp(this, 14), GlassTheme.dp(this, 12));
+            row.setBackground(GlassTheme.createFrostedCard(this, 14f, false));
+            LinearLayout.LayoutParams rLp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+            rLp.bottomMargin = GlassTheme.dp(this, 9);
+            row.setLayoutParams(rLp);
+
+            TextView lbl = new TextView(this);
+            lbl.setText(r[0]);
+            lbl.setTextColor(GlassTheme.TEXT_PRIMARY);
+            lbl.setTextSize(12.5f);
+            lbl.setLayoutParams(new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+
+            TextView pill = new TextView(this);
+            pill.setText(r[1]);
+            pill.setTextColor(Color.WHITE);
+            pill.setTextSize(10.5f);
+            pill.setTypeface(Typeface.DEFAULT_BOLD);
+            pill.setPadding(GlassTheme.dp(this, 11), GlassTheme.dp(this, 6), GlassTheme.dp(this, 11), GlassTheme.dp(this, 6));
+            boolean isKill = "kill".equals(r[2]);
+            pill.setBackground(GlassTheme.createPillButton(
+                    this,
+                    isKill ? Color.parseColor("#DC2626") : GlassTheme.ACCENT_AMBER_SOFT,
+                    isKill ? Color.parseColor("#F87171") : GlassTheme.BORDER_WARM
+            ));
+
+            row.addView(lbl);
+            row.addView(pill);
+            row.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    d.dismiss();
+                    if ("storage".equals(r[2])) showStoragePermissionGuide();
+                    else if ("vault".equals(r[2])) SecurityVaultSheet.openWithBiometric(MainActivity.this, 0);
+                    else if ("audit".equals(r[2])) SecurityVaultSheet.openWithBiometric(MainActivity.this, 1);
+                    else if ("kill".equals(r[2])) toggleCloudEngine(false);
+                }
+            });
+            card.addView(row);
+        }
+
+        d.setContentView(card);
+        if (d.getWindow() != null) {
+            d.getWindow().setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        }
+        d.show();
+    }
+
 }

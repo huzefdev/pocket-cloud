@@ -90,7 +90,7 @@ public class SecurityVaultSheet {
         titleCol.addView(tvSub);
 
         TextView btnClose = new TextView(activity);
-        btnClose.setText("✕");
+        btnClose.setText("×");
         btnClose.setTextColor(GlassTheme.TEXT_PRIMARY);
         btnClose.setTextSize(14f);
         btnClose.setGravity(Gravity.CENTER);
@@ -116,7 +116,7 @@ public class SecurityVaultSheet {
         tabsRow.setLayoutParams(tabsLp);
 
         final TextView tabVault = new TextView(activity);
-        tabVault.setText("🔐 BIOMETRIC VAULT");
+        tabVault.setText("BIOMETRIC VAULT");
         tabVault.setGravity(Gravity.CENTER);
         tabVault.setTextSize(11.5f);
         tabVault.setTypeface(Typeface.DEFAULT_BOLD);
@@ -126,7 +126,7 @@ public class SecurityVaultSheet {
         tabVault.setLayoutParams(t1Lp);
 
         final TextView tabShield = new TextView(activity);
-        tabShield.setText("🛡️ PRIVACY SHIELD");
+        tabShield.setText("PRIVACY SHIELD");
         tabShield.setGravity(Gravity.CENTER);
         tabShield.setTextSize(11.5f);
         tabShield.setTypeface(Typeface.DEFAULT_BOLD);
@@ -433,7 +433,7 @@ public class SecurityVaultSheet {
         proofCard.setLayoutParams(pLp);
 
         TextView tvProofTitle = new TextView(activity);
-        tvProofTitle.setText("✓ VERIFIED ZERO-CLOUD ARCHITECTURE");
+        tvProofTitle.setText("VERIFIED ZERO-CLOUD ARCHITECTURE");
         tvProofTitle.setTextColor(Color.parseColor("#34D399"));
         tvProofTitle.setTextSize(12.5f);
         tvProofTitle.setTypeface(Typeface.DEFAULT_BOLD);
@@ -491,7 +491,7 @@ public class SecurityVaultSheet {
         holder.addView(lanCard);
 
         TextView btnLockdown = new TextView(activity);
-        btnLockdown.setText("🛑 EMERGENCY LOCKDOWN (STOP ALL SERVERS)");
+        btnLockdown.setText("EMERGENCY LOCKDOWN  •  TERMINATE ALL PORTS");
         btnLockdown.setTextColor(Color.WHITE);
         btnLockdown.setTextSize(12f);
         btnLockdown.setTypeface(Typeface.DEFAULT_BOLD);
