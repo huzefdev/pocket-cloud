@@ -128,29 +128,42 @@ public class JellyfinEngineManager {
 
     private boolean ensureGlibcRootfs(File dir, InstallProgressListener listener) {
         File rootfs = new File(dir, "rootfs");
-        if (findLdLinuxInRootfs(rootfs) != null) {
-            ensureLinkerSymlink(rootfs);
+        File targetLd = new File(rootfs, "lib/ld-linux-aarch64.so.1");
+        if (targetLd.exists() && targetLd.length() > 10000) {
             return true;
         }
-
         try {
-            rootfs.mkdirs();
-            notifyProgress(listener, 88, "Fetching ARM64 glibc runtime layer (~25 MB)...");
-            PocketCloudService.appendLog("[8096] Provisioning embedded ARM64 glibc rootfs...");
-            String rootfsUrl = "https://github.com/termux/proot-distro/releases/download/v4.15.0/debian-bookworm-aarch64-pd-v4.15.0.tar.xz";
-            // Use Ubuntu/Alpine/Debian gzipped rootfs for pure-Java extraction without xz binary
-            String gzRootfsUrl = "https://raw.githubusercontent.com/docker-library/ubuntu/24.04/noble/ubuntu-noble-oci-arm64-root.tar.gz";
-            File rootTar = new File(dir, "rootfs.tar.gz");
-            downloadWithProgress(gzRootfsUrl, rootTar, 88, 95, "Downloading ARM64 Linux Runtime", listener);
-            notifyProgress(listener, 95, "Extracting Linux linker & glibc libraries...");
-            extractTarGzSelective(rootTar, rootfs);
-            rootTar.delete();
-            ensureLinkerSymlink(rootfs);
-            return new File(rootfs, "lib/ld-linux-aarch64.so.1").exists()
-                    || new File(rootfs, "usr/lib/ld-linux-aarch64.so.1").exists()
-                    || new File(rootfs, "usr/lib/aarch64-linux-gnu/ld-linux-aarch64.so.1").exists();
+            File libDir = new File(rootfs, "lib");
+            File usrLibDir = new File(rootfs, "usr/lib");
+            libDir.mkdirs();
+            usrLibDir.mkdirs();
+            notifyProgress(listener, 88, "Installing embedded ARM64 glibc runtime...");
+            String[] soFiles = context.getAssets().list("glibc_arm64");
+            if (soFiles != null) {
+                byte[] buf = new byte[32768];
+                for (String name : soFiles) {
+                    InputStream is = context.getAssets().open("glibc_arm64/" + name);
+                    File out1 = new File(libDir, name);
+                    FileOutputStream fos1 = new FileOutputStream(out1);
+                    int r;
+                    while ((r = is.read(buf)) != -1) fos1.write(buf, 0, r);
+                    fos1.close();
+                    is.close();
+                    out1.setExecutable(true, false);
+
+                    File out2 = new File(usrLibDir, name);
+                    FileInputStream fis2 = new FileInputStream(out1);
+                    FileOutputStream fos2 = new FileOutputStream(out2);
+                    while ((r = fis2.read(buf)) != -1) fos2.write(buf, 0, r);
+                    fos2.close();
+                    fis2.close();
+                    out2.setExecutable(true, false);
+                }
+            }
+            PocketCloudService.appendLog("[8096] Embedded glibc extracted: ld.so=" + targetLd.length() + " bytes");
+            return targetLd.exists() && targetLd.length() > 10000;
         } catch (Exception e) {
-            PocketCloudService.appendLog("[8096] Runtime layer err: " + e.getMessage());
+            PocketCloudService.appendLog("[8096] Embedded glibc err: " + e.getMessage());
             return false;
         }
     }
