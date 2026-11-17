@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 import dev.huzef.pocketcloud.core.HardwareTelemetry;
+import dev.huzef.pocketcloud.security.SecurityVaultManager;
 import dev.huzef.pocketcloud.core.VaultConfigManager;
 import dev.huzef.pocketcloud.server.JellyfinEngineManager;
 import dev.huzef.pocketcloud.ui.MainActivity;
@@ -43,6 +44,7 @@ public class PocketCloudService extends Service {
     private PowerManager.WakeLock wakeLock;
     private Process fileBrowserProcess;
     private Process syncthingProcess;
+    private static PocketCloudService activeInstance;
     public static JellyfinEngineManager jellyfinManager;
 
     public static List<String> getLogsSnapshot() {
@@ -62,6 +64,7 @@ public class PocketCloudService extends Service {
 
     @Override
     public void onCreate() {
+        activeInstance = this;
         super.onCreate();
         createNotificationChannel();
         jellyfinManager = new JellyfinEngineManager(this);
@@ -188,11 +191,10 @@ public class PocketCloudService extends Service {
             File dbFile = new File(workDir, "filebrowser.db");
             String storageRoot = Environment.getExternalStorageDirectory().getAbsolutePath();
 
-            String adminUser = VaultConfigManager.getUsername(this);
-            String adminPass = VaultConfigManager.getPassword(this);
-            if (adminPass == null || adminPass.length() < 6) {
-                adminPass = "pocketcloud123";
-            }
+            SecurityVaultManager.ensureInitialized(this);
+            SecurityVaultManager.ServerCredential fbCred = SecurityVaultManager.getCredential(this, 8080);
+            String adminUser = (fbCred != null) ? fbCred.username : "admin";
+            String adminPass = (fbCred != null) ? fbCred.password : "pocketcloud123";
 
             if (!dbFile.exists() || forceRecreateDb) {
                 if (dbFile.exists()) dbFile.delete();
@@ -400,6 +402,38 @@ public class PocketCloudService extends Service {
                 .setContentIntent(pi)
                 .setOngoing(true)
                 .build();
+    }
+
+    public static void stopEngineForPasswordUpdate(int port) {
+        if (activeInstance == null) return;
+        try {
+            if (port == 8080 && activeInstance.fileBrowserProcess != null) {
+                activeInstance.fileBrowserProcess.destroyForcibly();
+                activeInstance.fileBrowserProcess.waitFor();
+                activeInstance.fileBrowserProcess = null;
+            } else if (port == 8384 && activeInstance.syncthingProcess != null) {
+                activeInstance.syncthingProcess.destroyForcibly();
+                activeInstance.syncthingProcess.waitFor();
+                activeInstance.syncthingProcess = null;
+            } else if (port == 8096 && activeInstance.jellyfinManager != null) {
+                activeInstance.jellyfinManager.stop();
+            }
+        } catch (Exception ignored) {}
+    }
+
+    public static void restartEngineAfterPasswordUpdate(final int port) {
+        if (activeInstance == null) return;
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    Thread.sleep(250);
+                    if (port == 8080) activeInstance.startNativeFileBrowser(false);
+                    else if (port == 8384) activeInstance.startNativeSyncthing();
+                    else if (port == 8096 && activeInstance.jellyfinManager != null) activeInstance.jellyfinManager.startIfInstalled();
+                } catch (Exception ignored) {}
+            }
+        }).start();
     }
 
     @Override

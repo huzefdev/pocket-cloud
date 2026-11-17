@@ -27,7 +27,7 @@ public class SecurityVaultManager {
 
     private static final String KEYSTORE_ALIAS = "PocketCloudMasterVaultKey_v1";
     private static final String PREFS_VAULT = "pocketcloud_encrypted_vault";
-    private static final String CHARSET = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789@#%";
+    private static final String CHARSET = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789";
 
     public static class ServerCredential {
         public final int port;
@@ -47,13 +47,13 @@ public class SecurityVaultManager {
 
     public static void ensureInitialized(Context ctx) {
         if (getCredential(ctx, 8080) == null) {
-            saveCredential(ctx, 8080, "admin", generateStrongPassword(14), false);
+            saveCredential(ctx, 8080, "admin", generateStrongPassword(12), false);
         }
         if (getCredential(ctx, 8096) == null) {
-            saveCredential(ctx, 8096, "admin", generateStrongPassword(14), false);
+            saveCredential(ctx, 8096, "admin", generateStrongPassword(12), false);
         }
         if (getCredential(ctx, 8384) == null) {
-            saveCredential(ctx, 8384, "pocketadmin", generateStrongPassword(16), false);
+            saveCredential(ctx, 8384, "pocketadmin", generateStrongPassword(12), false);
         }
     }
 
@@ -83,7 +83,7 @@ public class SecurityVaultManager {
     public static void saveCredential(Context ctx, int port, String username, String newPassword, boolean applyLive) {
         if (username == null || username.trim().isEmpty()) username = "admin";
         if (newPassword == null || newPassword.trim().length() < 4) {
-            newPassword = generateStrongPassword(14);
+            newPassword = generateStrongPassword(12);
         }
         SharedPreferences prefs = ctx.getSharedPreferences(PREFS_VAULT, Context.MODE_PRIVATE);
         String ts = new SimpleDateFormat("dd MMM HH:mm", Locale.US).format(new Date());
@@ -101,7 +101,7 @@ public class SecurityVaultManager {
     public static String rotateForgotPassword(Context ctx, int port) {
         ServerCredential cur = getCredential(ctx, port);
         String user = (cur != null) ? cur.username : "admin";
-        String freshPass = generateStrongPassword(16);
+        String freshPass = generateStrongPassword(12);
         saveCredential(ctx, port, user, freshPass, true);
         return freshPass;
     }
@@ -111,18 +111,31 @@ public class SecurityVaultManager {
             @Override
             public void run() {
                 try {
+                    // 1. Stop running server so DB / config file lock is released
+                    PocketCloudService.stopEngineForPasswordUpdate(port);
+                    Thread.sleep(300);
+
                     if (port == 8080) {
                         File fbDir = new File(ctx.getFilesDir(), "filebrowser");
+                        if (!fbDir.exists()) fbDir.mkdirs();
                         File fbDb = new File(fbDir, "filebrowser.db");
                         File fbBin = new File(ctx.getApplicationInfo().nativeLibraryDir, "libfilebrowser.so");
-                        if (fbBin.exists() && fbDb.exists()) {
-                            ProcessBuilder pb = new ProcessBuilder(
+                        if (fbBin.exists()) {
+                            if (!fbDb.exists()) {
+                                new ProcessBuilder(fbBin.getAbsolutePath(), "config", "init", "--database", fbDb.getAbsolutePath())
+                                        .directory(fbDir).start().waitFor();
+                            }
+                            int rc = new ProcessBuilder(
                                     fbBin.getAbsolutePath(), "users", "update", user,
                                     "--password", pass, "--database", fbDb.getAbsolutePath()
-                            );
-                            pb.directory(fbDir);
-                            pb.start().waitFor();
-                            PocketCloudService.appendLog("[VAULT] FileBrowser (:8080) password synced to SQLite DB");
+                            ).directory(fbDir).start().waitFor();
+                            if (rc != 0) {
+                                new ProcessBuilder(
+                                        fbBin.getAbsolutePath(), "users", "add", user, pass,
+                                        "--perm.admin=true", "--database", fbDb.getAbsolutePath()
+                                ).directory(fbDir).start().waitFor();
+                            }
+                            PocketCloudService.appendLog("[VAULT] FileBrowser (:8080) REAL password updated for " + user);
                         }
                     } else if (port == 8384) {
                         File configXml = new File(ctx.getFilesDir(), "syncthing/config.xml");
@@ -146,13 +159,29 @@ public class SecurityVaultManager {
                             FileOutputStream fos = new FileOutputStream(configXml);
                             fos.write(xml.getBytes(StandardCharsets.UTF_8));
                             fos.close();
-                            PocketCloudService.appendLog("[VAULT] Syncthing (:8384) GUI credentials updated");
+                            PocketCloudService.appendLog("[VAULT] Syncthing (:8384) REAL password updated & reloaded");
                         }
                     } else if (port == 8096) {
-                        PocketCloudService.appendLog("[VAULT] Jellyfin (:8096) vault credentials rotated (" + user + ")");
+                        // Reset Jellyfin wizard flag if user forgot password so they can re-set admin password cleanly
+                        File sysXml = new File(ctx.getFilesDir(), "jellyfin_real/config/system.xml");
+                        if (sysXml.exists()) {
+                            FileInputStream fis = new FileInputStream(sysXml);
+                            byte[] data = new byte[(int) sysXml.length()];
+                            fis.read(data);
+                            fis.close();
+                            String xml = new String(data, StandardCharsets.UTF_8);
+                            xml = xml.replace("<IsStartupWizardCompleted>true</IsStartupWizardCompleted>", "<IsStartupWizardCompleted>false</IsStartupWizardCompleted>");
+                            FileOutputStream fos = new FileOutputStream(sysXml);
+                            fos.write(xml.getBytes(StandardCharsets.UTF_8));
+                            fos.close();
+                        }
+                        PocketCloudService.appendLog("[VAULT] Jellyfin (:8096) password reset & wizard unlocked for " + user);
                     }
+
+                    // 2. Restart engine immediately with new credentials active
+                    PocketCloudService.restartEngineAfterPasswordUpdate(port);
                 } catch (Exception e) {
-                    PocketCloudService.appendLog("[VAULT-WARN] " + e.getMessage());
+                    PocketCloudService.appendLog("[VAULT-ERR] " + e.getMessage());
                 }
             }
         }).start();
