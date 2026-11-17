@@ -249,17 +249,21 @@ public class PocketCloudService extends Service {
                 runOneShot(new String[]{
                         bin.getAbsolutePath(), "generate", "--home=" + homeDir.getAbsolutePath()
                 }, homeDir);
-                patchSyncthingBindAddress(configXml);
             }
+            File syncFolder = new File(android.os.Environment.getExternalStorageDirectory(), "PocketCloudSync");
+            if (!syncFolder.exists()) syncFolder.mkdirs();
+            patchSyncthingConfig(configXml, syncFolder.getAbsolutePath());
 
             ProcessBuilder pb = new ProcessBuilder(
                     bin.getAbsolutePath(),
-                    "-no-browser",
-                    "-gui-address=0.0.0.0:8384",
-                    "-home=" + homeDir.getAbsolutePath()
+                    "serve",
+                    "--no-browser",
+                    "--gui-address=0.0.0.0:8384",
+                    "--home=" + homeDir.getAbsolutePath()
             );
             pb.environment().put("HOME", homeDir.getAbsolutePath());
             pb.environment().put("STNORESTART", "1");
+            pb.environment().put("STNOUPGRADE", "1");
             pb.directory(homeDir);
             pb.redirectErrorStream(true);
             syncthingProcess = pb.start();
@@ -270,7 +274,7 @@ public class PocketCloudService extends Service {
         }
     }
 
-    private void patchSyncthingBindAddress(File configXml) {
+    private void patchSyncthingConfig(File configXml, String defaultSyncPath) {
         try {
             if (!configXml.exists()) return;
             FileInputStream fis = new FileInputStream(configXml);
@@ -279,10 +283,19 @@ public class PocketCloudService extends Service {
             fis.close();
             String xml = new String(data, StandardCharsets.UTF_8);
             xml = xml.replace("<address>127.0.0.1:8384</address>", "<address>0.0.0.0:8384</address>");
+            xml = xml.replace("<insecureSkipHostcheck>false</insecureSkipHostcheck>", "<insecureSkipHostcheck>true</insecureSkipHostcheck>");
+            xml = xml.replace("<insecureAdminAccess>false</insecureAdminAccess>", "<insecureAdminAccess>true</insecureAdminAccess>");
+            xml = xml.replace("<globalAnnounceEnabled>true</globalAnnounceEnabled>", "<globalAnnounceEnabled>false</globalAnnounceEnabled>");
+            xml = xml.replace("<relaysEnabled>true</relaysEnabled>", "<relaysEnabled>false</relaysEnabled>");
+            xml = xml.replace("<urAccepted>0</urAccepted>", "<urAccepted>-1</urAccepted>");
+            xml = xml.replaceAll("path=\"[^\"]*/Sync\"", "path=\"" + defaultSyncPath + "\"");
             FileOutputStream fos = new FileOutputStream(configXml);
             fos.write(xml.getBytes(StandardCharsets.UTF_8));
             fos.close();
-        } catch (Exception ignored) {}
+            appendLog("[8384] Syncthing LAN config hardened -> " + defaultSyncPath);
+        } catch (Exception e) {
+            appendLog("[8384] Config patch warn: " + e.getMessage());
+        }
     }
 
     private void runOneShot(String[] cmd, File dir) {
