@@ -203,6 +203,7 @@ public class PocketCloudService extends Service {
                         "-a", "0.0.0.0",
                         "-p", "8080",
                         "-r", storageRoot,
+                        "--minimum-password-length", "4",
                         "-d", dbFile.getAbsolutePath()
                 }, workDir);
                 runOneShot(new String[]{

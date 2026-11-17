@@ -369,7 +369,7 @@ public class SecurityVaultSheet {
             });
 
             TextView btnForgot = new TextView(activity);
-            btnForgot.setText("FORGOT / ROTATE");
+            btnForgot.setText("ROTATE");
             btnForgot.setTextColor(Color.WHITE);
             btnForgot.setTextSize(10f);
             btnForgot.setTypeface(Typeface.DEFAULT_BOLD);
@@ -394,6 +394,26 @@ public class SecurityVaultSheet {
             editRow.addView(etNewPass);
             editRow.addView(btnSave);
             editRow.addView(btnForgot);
+
+            TextView btnRemove = new TextView(activity);
+            btnRemove.setText("REMOVE");
+            btnRemove.setTextColor(Color.WHITE);
+            btnRemove.setTextSize(10f);
+            btnRemove.setTypeface(Typeface.DEFAULT_BOLD);
+            btnRemove.setPadding(GlassTheme.dp(activity, 9), GlassTheme.dp(activity, 8), GlassTheme.dp(activity, 9), GlassTheme.dp(activity, 8));
+            btnRemove.setBackground(GlassTheme.createPillButton(activity, Color.parseColor("#DC2626"), Color.parseColor("#F87171")));
+            LinearLayout.LayoutParams rLp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+            rLp.leftMargin = GlassTheme.dp(activity, 5);
+            btnRemove.setLayoutParams(rLp);
+            btnRemove.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    SecurityVaultManager.removeCredential(activity, port);
+                    Toast.makeText(activity, "Password removed & server reset for :" + port, Toast.LENGTH_SHORT).show();
+                    refreshSelf.run();
+                }
+            });
+            editRow.addView(btnRemove);
             card.addView(editRow);
 
             holder.addView(card);

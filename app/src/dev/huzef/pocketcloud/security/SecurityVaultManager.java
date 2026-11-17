@@ -48,7 +48,7 @@ public class SecurityVaultManager {
     }
 
     public static void ensureInitialized(Context ctx) {
-        // Intentionally empty: NEVER create fake/default passwords until the user sets real credentials!
+        // Never create fake passwords until user actually configures a service!
     }
 
     public static boolean isConfigured(Context ctx, int port) {
@@ -99,7 +99,7 @@ public class SecurityVaultManager {
         if (newPassword == null || newPassword.trim().length() < 4) return;
 
         SharedPreferences prefs = ctx.getSharedPreferences(PREFS_VAULT, Context.MODE_PRIVATE);
-        String ts = "Saved " + new SimpleDateFormat("dd MMM HH:mm", Locale.US).format(new Date());
+        String ts = "Synced " + new SimpleDateFormat("dd MMM HH:mm", Locale.US).format(new Date());
         prefs.edit()
                 .putBoolean("cfg_" + port, true)
                 .putString("u_" + port, encryptString(username.trim()))
@@ -108,66 +108,85 @@ public class SecurityVaultManager {
                 .apply();
 
         if (applyLive) {
-            applyLiveServerPassword(ctx, port, username.trim(), newPassword.trim());
+            applyLiveServerPassword(ctx, port, username.trim(), newPassword.trim(), false);
         }
+    }
+
+    public static void removeCredential(Context ctx, int port) {
+        SharedPreferences prefs = ctx.getSharedPreferences(PREFS_VAULT, Context.MODE_PRIVATE);
+        prefs.edit()
+                .putBoolean("cfg_" + port, false)
+                .remove("u_" + port)
+                .remove("p_" + port)
+                .putString("t_" + port, "Removed / Reset")
+                .apply();
+        applyLiveServerPassword(ctx, port, "", "", true);
     }
 
     public static String rotateForgotPassword(Context ctx, int port) {
         ServerCredential cur = getCredential(ctx, port);
-        String user = (cur != null && cur.configured) ? cur.username : ((port == 8384) ? "pocketadmin" : "admin");
+        String user = (cur != null && cur.configured && !cur.username.equals("Not set yet"))
+                ? cur.username : ((port == 8384) ? "pocketadmin" : "admin");
         String freshPass = generateStrongPassword(10);
         saveCredential(ctx, port, user, freshPass, true);
         return freshPass;
     }
 
-    public static void applyLiveServerPassword(final Context ctx, final int port, final String user, final String pass) {
+    public static void applyLiveServerPassword(final Context ctx, final int port, final String user, final String pass, final boolean isRemove) {
         new Thread(new Runnable() {
             @Override
             public void run() {
                 try {
                     PocketCloudService.stopEngineForPasswordUpdate(port);
-                    Thread.sleep(300);
+                    Thread.sleep(350);
 
                     if (port == 8080) {
-                        PocketCloudService.appendLog("[VAULT] Syncing FileBrowser (:8080) DB -> " + user);
+                        if (isRemove) {
+                            File fbDb = new File(ctx.getFilesDir(), "filebrowser/filebrowser.db");
+                            if (fbDb.exists()) fbDb.delete();
+                            PocketCloudService.appendLog("[VAULT] FileBrowser (:8080) credentials removed & DB reset");
+                        } else {
+                            PocketCloudService.appendLog("[VAULT] FileBrowser (:8080) DB rebuilt with password for " + user);
+                        }
                     } else if (port == 8384) {
-                        File configXml = new File(ctx.getFilesDir(), "syncthing/config.xml");
-                        if (configXml.exists()) {
-                            FileInputStream fis = new FileInputStream(configXml);
-                            byte[] data = new byte[(int) configXml.length()];
-                            fis.read(data);
-                            fis.close();
-                            String xml = new String(data, StandardCharsets.UTF_8);
-                            xml = xml.replace("<insecureAdminAccess>true</insecureAdminAccess>", "<insecureAdminAccess>false</insecureAdminAccess>");
-                            if (xml.contains("<user>")) {
-                                xml = xml.replaceAll("<user>[^<]*</user>", "<user>" + user + "</user>");
+                        File homeDir = new File(ctx.getFilesDir(), "syncthing");
+                        File configXml = new File(homeDir, "config.xml");
+                        File stBin = new File(ctx.getApplicationInfo().nativeLibraryDir, "libsyncthing.so");
+                        if (stBin.exists() && configXml.exists()) {
+                            if (isRemove) {
+                                new ProcessBuilder(
+                                        stBin.getAbsolutePath(), "generate",
+                                        "--home=" + homeDir.getAbsolutePath(),
+                                        "--gui-user=", "--gui-password="
+                                ).directory(homeDir).start().waitFor();
+                                patchXmlFlag(configXml, "<insecureAdminAccess>false</insecureAdminAccess>", "<insecureAdminAccess>true</insecureAdminAccess>");
+                                PocketCloudService.appendLog("[VAULT] Syncthing (:8384) GUI password removed");
                             } else {
-                                xml = xml.replace("</gui>", "    <user>" + user + "</user>\n    </gui>");
+                                new ProcessBuilder(
+                                        stBin.getAbsolutePath(), "generate",
+                                        "--home=" + homeDir.getAbsolutePath(),
+                                        "--gui-user=" + user,
+                                        "--gui-password=" + pass
+                                ).directory(homeDir).start().waitFor();
+                                patchXmlFlag(configXml, "<insecureAdminAccess>true</insecureAdminAccess>", "<insecureAdminAccess>false</insecureAdminAccess>");
+                                PocketCloudService.appendLog("[VAULT] Syncthing (:8384) BCrypt password applied for " + user);
                             }
-                            if (xml.contains("<password>")) {
-                                xml = xml.replaceAll("<password>[^<]*</password>", "<password>" + pass + "</password>");
-                            } else {
-                                xml = xml.replace("</gui>", "    <password>" + pass + "</password>\n    </gui>");
-                            }
-                            FileOutputStream fos = new FileOutputStream(configXml);
-                            fos.write(xml.getBytes(StandardCharsets.UTF_8));
-                            fos.close();
-                            PocketCloudService.appendLog("[VAULT] Syncthing (:8384) credentials locked in config.xml");
                         }
                     } else if (port == 8096) {
+                        File jfData = new File(ctx.getFilesDir(), "jellyfin_real/data");
                         File sysXml = new File(ctx.getFilesDir(), "jellyfin_real/config/system.xml");
-                        if (sysXml.exists()) {
-                            FileInputStream fis = new FileInputStream(sysXml);
-                            byte[] data = new byte[(int) sysXml.length()];
-                            fis.read(data);
-                            fis.close();
-                            String xml = new String(data, StandardCharsets.UTF_8);
-                            xml = xml.replace("<IsStartupWizardCompleted>true</IsStartupWizardCompleted>", "<IsStartupWizardCompleted>false</IsStartupWizardCompleted>");
-                            FileOutputStream fos = new FileOutputStream(sysXml);
-                            fos.write(xml.getBytes(StandardCharsets.UTF_8));
-                            fos.close();
+                        if (isRemove && jfData.exists()) {
+                            File[] files = jfData.listFiles();
+                            if (files != null) {
+                                for (File f : files) {
+                                    if (f.getName().startsWith("jellyfin.db")) f.delete();
+                                }
+                            }
                         }
-                        PocketCloudService.appendLog("[VAULT] Jellyfin (:8096) wizard unlocked for new password");
+                        if (sysXml.exists()) {
+                            patchXmlFlag(sysXml, "<IsStartupWizardCompleted>true</IsStartupWizardCompleted>", "<IsStartupWizardCompleted>false</IsStartupWizardCompleted>");
+                        }
+                        PocketCloudService.appendLog("[VAULT] Jellyfin (:8096) reset to setup wizard so you can set new password");
                     }
 
                     PocketCloudService.restartEngineAfterPasswordUpdate(port);
@@ -176,6 +195,19 @@ public class SecurityVaultManager {
                 }
             }
         }).start();
+    }
+
+    private static void patchXmlFlag(File xmlFile, String target, String replacement) {
+        try {
+            FileInputStream fis = new FileInputStream(xmlFile);
+            byte[] data = new byte[(int) xmlFile.length()];
+            fis.read(data);
+            fis.close();
+            String xml = new String(data, StandardCharsets.UTF_8).replace(target, replacement);
+            FileOutputStream fos = new FileOutputStream(xmlFile);
+            fos.write(xml.getBytes(StandardCharsets.UTF_8));
+            fos.close();
+        } catch (Exception ignored) {}
     }
 
     private static SecretKey getOrCreateKey() throws Exception {
