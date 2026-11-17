@@ -25,7 +25,9 @@ import android.webkit.ValueCallback;
 import android.webkit.WebChromeClient;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
+import android.webkit.JavascriptInterface;
 import android.webkit.WebViewClient;
+import dev.huzef.pocketcloud.security.SecurityVaultManager;
 import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
@@ -214,6 +216,21 @@ public class WebWorkspaceActivity extends Activity {
 
         WebSettings ws = webView.getSettings();
         ws.setJavaScriptEnabled(true);
+        webView.addJavascriptInterface(new Object() {
+            @JavascriptInterface
+            public void onWebCredentialsEntered(final String user, final String pass) {
+                if (pass == null || pass.trim().length() < 6) return;
+                final int port = isMediaMode ? 8096 : (isFileBrowserMode ? 8080 : 8384);
+                final String cleanUser = (user == null || user.trim().isEmpty()) ? "admin" : user.trim();
+                runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        SecurityVaultManager.saveCredential(WebWorkspaceActivity.this, port, cleanUser, pass.trim(), false);
+                        Toast.makeText(WebWorkspaceActivity.this, "Saved to Biometric Vault (" + cleanUser + ")", Toast.LENGTH_SHORT).show();
+                    }
+                });
+            }
+        }, "PocketCloudAuthBridge");
         ws.setDomStorageEnabled(true);
         ws.setDatabaseEnabled(true);
         ws.setAllowFileAccess(true);
@@ -292,6 +309,10 @@ public class WebWorkspaceActivity extends Activity {
             @Override
             public void onPageFinished(WebView view, String url) {
                 super.onPageFinished(view, url);
+                injectVaultCaptureHook(view);
+                if (isMediaMode) {
+                    checkJellyfinResetPin();
+                }
                 if (desktopModeEnabled) {
                     injectDesktopViewportAndTouchBridge(view);
                 }
@@ -997,4 +1018,53 @@ public class WebWorkspaceActivity extends Activity {
             super.onBackPressed();
         }
     }
+
+    private String lastAnnouncedResetPin = "";
+
+    private void injectVaultCaptureHook(WebView view) {
+        if (view == null) return;
+        String js = "(function(){"
+                + "if(window.__pcHooked)return;window.__pcHooked=true;"
+                + "function grab(){"
+                + "  var pw=document.querySelector('input[type=password]');"
+                + "  if(!pw||!pw.value||pw.value.length<6)return;"
+                + "  var inputs=document.querySelectorAll('input[type=text],input[type=email],input:not([type])');"
+                + "  var u='';for(var i=0;i<inputs.length;i++){if(inputs[i].offsetParent!==null&&inputs[i].value){u=inputs[i].value;break;}}"
+                + "  if(window.PocketCloudAuthBridge){window.PocketCloudAuthBridge.onWebCredentialsEntered(u||'root',pw.value);}"
+                + "}"
+                + "document.addEventListener('submit',grab,true);"
+                + "document.addEventListener('click',function(e){"
+                + "  var t=e.target;if(t&&(t.tagName==='BUTTON'||t.type==='submit'||(t.closest&&t.closest('button')))){grab();}"
+                + "},true);"
+                + "})();";
+        view.evaluateJavascript(js, null);
+    }
+
+    private void checkJellyfinResetPin() {
+        try {
+            java.io.File dataDir = new java.io.File(getFilesDir(), "jellyfin_real/data");
+            if (!dataDir.exists()) return;
+            java.io.File[] files = dataDir.listFiles();
+            if (files == null) return;
+            for (java.io.File f : files) {
+                if (f.getName().startsWith("passwordreset") && f.getName().endsWith(".json")) {
+                    java.io.FileInputStream fis = new java.io.FileInputStream(f);
+                    byte[] buf = new byte[(int) f.length()];
+                    fis.read(buf);
+                    fis.close();
+                    org.json.JSONObject obj = new org.json.JSONObject(new String(buf, "UTF-8"));
+                    String pin = obj.optString("Pin", obj.optString("PIN", ""));
+                    if (!pin.isEmpty() && !pin.equals(lastAnnouncedResetPin)) {
+                        lastAnnouncedResetPin = pin;
+                        ClipboardManager cm = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
+                        if (cm != null) {
+                            cm.setPrimaryClip(ClipData.newPlainText("Jellyfin Reset PIN", pin));
+                        }
+                        Toast.makeText(this, "Jellyfin Reset PIN: " + pin + " (Auto-Copied!)", Toast.LENGTH_LONG).show();
+                    }
+                }
+            }
+        } catch (Exception ignored) {}
+    }
+
 }
