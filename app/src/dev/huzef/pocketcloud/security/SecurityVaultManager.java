@@ -26,7 +26,7 @@ import dev.huzef.pocketcloud.service.PocketCloudService;
 public class SecurityVaultManager {
 
     private static final String KEYSTORE_ALIAS = "PocketCloudMasterVaultKey_v1";
-    private static final String PREFS_VAULT = "pocketcloud_encrypted_vault";
+    private static final String PREFS_VAULT = "pocketcloud_encrypted_vault_v2";
     private static final String CHARSET = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789";
 
     public static class ServerCredential {
@@ -34,26 +34,23 @@ public class SecurityVaultManager {
         public final String title;
         public final String username;
         public final String password;
-        public final String lastRotated;
+        public final String status;
+        public final boolean configured;
 
-        public ServerCredential(int port, String title, String username, String password, String lastRotated) {
+        public ServerCredential(int port, String title, String username, String password, String status, boolean configured) {
             this.port = port;
             this.title = title;
             this.username = username;
             this.password = password;
-            this.lastRotated = lastRotated;
+            this.status = status;
+            this.configured = configured;
         }
     }
 
     public static void ensureInitialized(Context ctx) {
+        // Only FileBrowser (:8080) needs an initial login credential; Jellyfin & Syncthing stay unconfigured until user sets them!
         if (getCredential(ctx, 8080) == null) {
-            saveCredential(ctx, 8080, "admin", generateStrongPassword(12), false);
-        }
-        if (getCredential(ctx, 8096) == null) {
-            saveCredential(ctx, 8096, "admin", generateStrongPassword(12), false);
-        }
-        if (getCredential(ctx, 8384) == null) {
-            saveCredential(ctx, 8384, "pocketadmin", generateStrongPassword(12), false);
+            saveCredential(ctx, 8080, "admin", "pocket1234", false);
         }
     }
 
@@ -70,23 +67,27 @@ public class SecurityVaultManager {
         SharedPreferences prefs = ctx.getSharedPreferences(PREFS_VAULT, Context.MODE_PRIVATE);
         String encUser = prefs.getString("u_" + port, null);
         String encPass = prefs.getString("p_" + port, null);
-        String rotated = prefs.getString("t_" + port, "Auto-Hardened");
-        if (encUser == null || encPass == null) return null;
-        String user = decryptString(encUser);
-        String pass = decryptString(encPass);
+        String status = prefs.getString("t_" + port, null);
         String title = port == 8080 ? "FileBrowser Cloud (:8080)"
                 : port == 8096 ? "Jellyfin Cinema (:8096)"
                 : "Syncthing Mesh (:8384)";
-        return new ServerCredential(port, title, user, pass, rotated);
+
+        if (encUser == null || encPass == null) {
+            if (port == 8080) return null;
+            String defaultUser = (port == 8384) ? "Not set (No auth)" : "Setup in Jellyfin UI";
+            return new ServerCredential(port, title, defaultUser, "", "Not configured yet", false);
+        }
+        return new ServerCredential(port, title, decryptString(encUser), decryptString(encPass), status != null ? status : "Saved", true);
     }
 
     public static void saveCredential(Context ctx, int port, String username, String newPassword, boolean applyLive) {
-        if (username == null || username.trim().isEmpty()) username = "admin";
-        if (newPassword == null || newPassword.trim().length() < 4) {
-            newPassword = generateStrongPassword(12);
+        if (username == null || username.trim().isEmpty()) {
+            username = (port == 8384) ? "pocketadmin" : "admin";
         }
+        if (newPassword == null || newPassword.trim().length() < 4) return;
+
         SharedPreferences prefs = ctx.getSharedPreferences(PREFS_VAULT, Context.MODE_PRIVATE);
-        String ts = new SimpleDateFormat("dd MMM HH:mm", Locale.US).format(new Date());
+        String ts = "Saved " + new SimpleDateFormat("dd MMM HH:mm", Locale.US).format(new Date());
         prefs.edit()
                 .putString("u_" + port, encryptString(username.trim()))
                 .putString("p_" + port, encryptString(newPassword.trim()))
@@ -100,8 +101,8 @@ public class SecurityVaultManager {
 
     public static String rotateForgotPassword(Context ctx, int port) {
         ServerCredential cur = getCredential(ctx, port);
-        String user = (cur != null) ? cur.username : "admin";
-        String freshPass = generateStrongPassword(12);
+        String user = (cur != null && cur.configured) ? cur.username : ((port == 8384) ? "pocketadmin" : "admin");
+        String freshPass = generateStrongPassword(10);
         saveCredential(ctx, port, user, freshPass, true);
         return freshPass;
     }
@@ -111,12 +112,11 @@ public class SecurityVaultManager {
             @Override
             public void run() {
                 try {
-                    // 1. Stop running server so DB / config file lock is released
                     PocketCloudService.stopEngineForPasswordUpdate(port);
                     Thread.sleep(300);
 
                     if (port == 8080) {
-                        PocketCloudService.appendLog("[VAULT] Rebuilding FileBrowser (:8080) DB with new password for " + user);
+                        PocketCloudService.appendLog("[VAULT] Rebuilding FileBrowser (:8080) DB -> " + user);
                     } else if (port == 8384) {
                         File configXml = new File(ctx.getFilesDir(), "syncthing/config.xml");
                         if (configXml.exists()) {
@@ -139,10 +139,9 @@ public class SecurityVaultManager {
                             FileOutputStream fos = new FileOutputStream(configXml);
                             fos.write(xml.getBytes(StandardCharsets.UTF_8));
                             fos.close();
-                            PocketCloudService.appendLog("[VAULT] Syncthing (:8384) REAL password updated & reloaded");
+                            PocketCloudService.appendLog("[VAULT] Syncthing (:8384) password locked in config.xml");
                         }
                     } else if (port == 8096) {
-                        // Reset Jellyfin wizard flag if user forgot password so they can re-set admin password cleanly
                         File sysXml = new File(ctx.getFilesDir(), "jellyfin_real/config/system.xml");
                         if (sysXml.exists()) {
                             FileInputStream fis = new FileInputStream(sysXml);
@@ -155,10 +154,9 @@ public class SecurityVaultManager {
                             fos.write(xml.getBytes(StandardCharsets.UTF_8));
                             fos.close();
                         }
-                        PocketCloudService.appendLog("[VAULT] Jellyfin (:8096) password reset & wizard unlocked for " + user);
+                        PocketCloudService.appendLog("[VAULT] Jellyfin (:8096) password saved & setup wizard unlocked");
                     }
 
-                    // 2. Restart engine immediately with new credentials active
                     PocketCloudService.restartEngineAfterPasswordUpdate(port);
                 } catch (Exception e) {
                     PocketCloudService.appendLog("[VAULT-ERR] " + e.getMessage());

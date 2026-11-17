@@ -237,7 +237,7 @@ public class SecurityVaultSheet {
             tvServer.setLayoutParams(new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
 
             TextView tvTs = new TextView(activity);
-            tvTs.setText("Synced: " + cred.lastRotated);
+            tvTs.setText(cred.status);
             tvTs.setTextColor(GlassTheme.TEXT_MUTED);
             tvTs.setTextSize(10f);
             top.addView(tvServer);
@@ -263,7 +263,7 @@ public class SecurityVaultSheet {
             passRow.setLayoutParams(pLp);
 
             final TextView tvPass = new TextView(activity);
-            tvPass.setText("Password:  ••••••••••••");
+            tvPass.setText(cred.configured ? "Password:  ••••••••••••" : "Password:  Not set yet");
             tvPass.setTextColor(Color.parseColor("#34D399"));
             tvPass.setTextSize(12.5f);
             tvPass.setTypeface(Typeface.MONOSPACE);
@@ -280,7 +280,7 @@ public class SecurityVaultSheet {
                 @Override
                 public void onClick(View v) {
                     revealed[0] = !revealed[0];
-                    tvPass.setText(revealed[0] ? ("Password:  " + cred.password) : "Password:  ••••••••••••");
+                    tvPass.setText(!cred.configured ? "Password:  Not set yet" : (revealed[0] ? ("Password:  " + cred.password) : "Password:  ••••••••••••"));
                     btnEye.setText(revealed[0] ? "HIDE" : "SHOW");
                 }
             });

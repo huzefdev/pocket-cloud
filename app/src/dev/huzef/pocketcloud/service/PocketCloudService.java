@@ -211,6 +211,10 @@ public class PocketCloudService extends Service {
                         "--perm.admin=true",
                         "-d", dbFile.getAbsolutePath()
                 }, workDir);
+                runOneShot(new String[]{
+                        bin.getAbsolutePath(), "users", "ls",
+                        "-d", dbFile.getAbsolutePath()
+                }, workDir);
                 appendLog("[8080] Vault Admin provisioned for user: " + adminUser);
             }
 
