@@ -86,8 +86,56 @@ public class JellyfinEngineManager {
                 fos.write("root:x:0:0:root:/jf_engine:/bin/sh\n".getBytes("UTF-8"));
                 fos.close();
             }
+            File sslDir = new File(etc, "ssl/certs");
+            sslDir.mkdirs();
+            File caBundle = new File(sslDir, "ca-certificates.crt");
+            if (!caBundle.exists() || caBundle.length() < 4096) {
+                File sysCacerts = new File("/system/etc/security/cacerts");
+                if (sysCacerts.exists() && sysCacerts.isDirectory()) {
+                    FileOutputStream cafos = new FileOutputStream(caBundle);
+                    File[] certs = sysCacerts.listFiles();
+                    if (certs != null) {
+                        byte[] cbuf = new byte[8192];
+                        for (File cf : certs) {
+                            if (!cf.isFile()) continue;
+                            try {
+                                FileInputStream cfis = new FileInputStream(cf);
+                                String header = new String(cbuf, 0, Math.min(64, cfis.read(cbuf)), "UTF-8");
+                                cfis.close();
+                                if (header.contains("BEGIN CERTIFICATE")) {
+                                    FileInputStream fullIn = new FileInputStream(cf);
+                                    int r;
+                                    while ((r = fullIn.read(cbuf)) != -1) cafos.write(cbuf, 0, r);
+                                    fullIn.close();
+                                    cafos.write("\n".getBytes("UTF-8"));
+                                }
+                            } catch (Exception ignored) {}
+                        }
+                    }
+                    cafos.close();
+                }
+            }
             File fontsDir = new File(etc, "fonts");
             fontsDir.mkdirs();
+            File jfCfgDir = new File(rootfs, "config");
+            jfCfgDir.mkdirs();
+            File encXml = new File(jfCfgDir, "encoding.xml");
+            if (!encXml.exists()) {
+                FileOutputStream efos = new FileOutputStream(encXml);
+                String xml = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n"
+                        + "<EncodingOptions xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xmlns:xsd=\"http://www.w3.org/2001/XMLSchema\">\n"
+                        + "  <EncodingThreadCount>4</EncodingThreadCount>\n"
+                        + "  <TranscodingTempPath>/jf_engine/transcodes</TranscodingTempPath>\n"
+                        + "  <DownMixAudioBoost>2</DownMixAudioBoost>\n"
+                        + "  <EnableThrottling>true</EnableThrottling>\n"
+                        + "  <ThrottleDelaySeconds>30</ThrottleDelaySeconds>\n"
+                        + "  <H264Crf>26</H264Crf>\n"
+                        + "  <H265Crf>28</H265Crf>\n"
+                        + "  <EncoderPreset>ultrafast</EncoderPreset>\n"
+                        + "</EncodingOptions>\n";
+                efos.write(xml.getBytes("UTF-8"));
+                efos.close();
+            }
             File fontsConf = new File(fontsDir, "fonts.conf");
             if (!fontsConf.exists()) {
                 FileOutputStream fos = new FileOutputStream(fontsConf);

@@ -158,6 +158,25 @@ public class WebWorkspaceActivity extends Activity {
             }
         });
         topBar.addView(btnDesktopToggle);
+        if (isMediaMode) {
+            TextView btnExtPlayer = new TextView(this);
+            btnExtPlayer.setText("VLC/EXT");
+            btnExtPlayer.setTextColor(Color.WHITE);
+            btnExtPlayer.setTextSize(10.5f);
+            btnExtPlayer.setTypeface(Typeface.DEFAULT_BOLD);
+            btnExtPlayer.setPadding(GlassTheme.dp(this, 10), GlassTheme.dp(this, 6), GlassTheme.dp(this, 10), GlassTheme.dp(this, 6));
+            btnExtPlayer.setBackground(GlassTheme.createPillButton(this, GlassTheme.EMERALD_LIVE, Color.TRANSPARENT));
+            LinearLayout.LayoutParams epLp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+            epLp.leftMargin = GlassTheme.dp(this, 6);
+            btnExtPlayer.setLayoutParams(epLp);
+            btnExtPlayer.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    launchExternalHardwarePlayer();
+                }
+            });
+            topBar.addView(btnExtPlayer);
+        }
 
         if (isFileBrowserMode || isMediaMode) {
             TextView btnVaultKey = new TextView(this);
@@ -216,6 +235,11 @@ public class WebWorkspaceActivity extends Activity {
 
         WebSettings ws = webView.getSettings();
         ws.setJavaScriptEnabled(true);
+        ws.setMediaPlaybackRequiresUserGesture(false);
+        ws.setDomStorageEnabled(true);
+        ws.setDatabaseEnabled(true);
+        ws.setCacheMode(WebSettings.LOAD_DEFAULT);
+        webView.setLayerType(View.LAYER_TYPE_HARDWARE, null);
         webView.addJavascriptInterface(new Object() {
             @JavascriptInterface
             public void onWebCredentialsEntered(final String user, final String pass) {
@@ -1065,6 +1089,35 @@ public class WebWorkspaceActivity extends Activity {
                 }
             }
         } catch (Exception ignored) {}
+    }
+
+
+    private void launchExternalHardwarePlayer() {
+        if (webView == null) return;
+        String js = "(function(){"
+                + "var v=document.querySelector('video');"
+                + "if(v&&v.currentSrc)return v.currentSrc;"
+                + "if(v&&v.src)return v.src;"
+                + "return '';"
+                + "})();";
+        webView.evaluateJavascript(js, new ValueCallback<String>() {
+            @Override
+            public void onReceiveValue(String value) {
+                String streamUrl = value != null ? value.replace("\"", "").trim() : "";
+                if (streamUrl.isEmpty() || "null".equals(streamUrl) || streamUrl.startsWith("blob:")) {
+                    Toast.makeText(WebWorkspaceActivity.this, "Start playing a video first, or open Jellyfin Settings > Playback > Disable Transcoding", Toast.LENGTH_LONG).show();
+                    return;
+                }
+                try {
+                    Intent intent = new Intent(Intent.ACTION_VIEW);
+                    intent.setDataAndType(Uri.parse(streamUrl), "video/*");
+                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                    startActivity(Intent.createChooser(intent, "Play with Hardware Video Player"));
+                } catch (Exception e) {
+                    Toast.makeText(WebWorkspaceActivity.this, "No external video player found", Toast.LENGTH_SHORT).show();
+                }
+            }
+        });
     }
 
 }
