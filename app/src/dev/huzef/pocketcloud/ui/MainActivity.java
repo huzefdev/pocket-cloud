@@ -1203,6 +1203,7 @@ public class MainActivity extends Activity {
         card.addView(sub);
 
         String[][] rows = new String[][]{
+                {"Offline LAN QR, Guest & Backup", "SUITE", "nextgen"},
                 {"Glassmorphism Theme Studio (12)", "THEMES", "themes"},
                 {"Storage & Media Access", "CONFIGURE", "storage"},
                 {"Biometric Credential Vault", "OPEN", "vault"},
@@ -1245,7 +1246,8 @@ public class MainActivity extends Activity {
                 @Override
                 public void onClick(View v) {
                     d.dismiss();
-                    if ("themes".equals(r[2])) ThemeStudioSheet.show(MainActivity.this);
+                    if ("nextgen".equals(r[2])) NextGenNodeSheet.show(MainActivity.this);
+                    else if ("themes".equals(r[2])) ThemeStudioSheet.show(MainActivity.this);
                     else if ("storage".equals(r[2])) showStoragePermissionGuide();
                     else if ("vault".equals(r[2])) SecurityVaultSheet.openWithBiometric(MainActivity.this, 0);
                     else if ("audit".equals(r[2])) SecurityVaultSheet.openWithBiometric(MainActivity.this, 1);
