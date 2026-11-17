@@ -154,8 +154,8 @@ public class JellyfinEngineManager {
     private boolean ensureGlibcRootfs(File dir, InstallProgressListener listener) {
         File rootfs = new File(dir, "rootfs");
         File targetLd = new File(rootfs, "lib/ld-linux-aarch64.so.1");
-        File targetCpp = new File(rootfs, "lib/libstdc++.so.6");
-        if (targetLd.exists() && targetLd.length() > 10000 && targetCpp.exists() && targetCpp.length() > 100000) {
+        File targetFc = new File(rootfs, "lib/libfontconfig.so.1");
+        if (targetLd.exists() && targetLd.length() > 10000 && targetFc.exists() && targetFc.length() > 50000) {
             return true;
         }
         try {
@@ -299,6 +299,8 @@ public class JellyfinEngineManager {
                 new File(rootfs, "media").mkdirs();
                 new File(rootfs, "jf_engine").mkdirs();
                 new File(rootfs, "tmp/dotnet_bundle").mkdirs();
+                new File(rootfs, "dev/shm").mkdirs();
+                new File(rootfs, "etc/fonts").mkdirs();
                 prepareMinimalEtc(rootfs);
 
                 cmd.add(prootBin.getAbsolutePath());
@@ -380,7 +382,7 @@ public class JellyfinEngineManager {
             pb.environment().put("HOME", "/jf_engine");
             pb.environment().put("USER", "root");
             String nativeDir = context.getApplicationInfo().nativeLibraryDir;
-            pb.environment().put("LD_LIBRARY_PATH", nativeDir + ":/usr/lib/aarch64-linux-gnu:/lib/aarch64-linux-gnu:/usr/lib:/lib:/jf_engine");
+            pb.environment().put("LD_LIBRARY_PATH", nativeDir + ":/usr/lib/aarch64-linux-gnu:/lib/aarch64-linux-gnu:/usr/lib:/lib:/jf_engine:/jf_engine/jellyfin:/jf_engine/jellyfin/runtimes/linux-arm64/native");
             pb.environment().put("JELLYFIN_PublishedServerUrl", "http://" + HardwareTelemetry.detectLocalIpv4() + ":8096");
             pb.environment().put("ASPNETCORE_URLS", "http://0.0.0.0:8096");
             pb.environment().put("JELLYFIN_WEB_OPT", "true");
