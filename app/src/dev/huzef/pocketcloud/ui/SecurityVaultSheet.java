@@ -369,7 +369,7 @@ public class SecurityVaultSheet {
             });
 
             TextView btnForgot = new TextView(activity);
-            btnForgot.setText("ROTATE");
+            btnForgot.setText(port == 8096 ? "RESET WIZARD" : "ROTATE");
             btnForgot.setTextColor(Color.WHITE);
             btnForgot.setTextSize(10f);
             btnForgot.setTypeface(Typeface.DEFAULT_BOLD);
@@ -382,6 +382,7 @@ public class SecurityVaultSheet {
                 @Override
                 public void onClick(View v) {
                     String fresh = SecurityVaultManager.rotateForgotPassword(activity, port);
+                    if ("WIZARD_RESET".equals(fresh)) { Toast.makeText(activity, "Jellyfin reset! Open Jellyfin (:8096) to create new admin password.", Toast.LENGTH_LONG).show(); refreshSelf.run(); return; }
                     ClipboardManager cm = (ClipboardManager) activity.getSystemService(Context.CLIPBOARD_SERVICE);
                     if (cm != null) {
                         cm.setPrimaryClip(ClipData.newPlainText("Rotated Pass", fresh));

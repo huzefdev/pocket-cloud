@@ -125,6 +125,7 @@ public class SecurityVaultManager {
     }
 
     public static String rotateForgotPassword(Context ctx, int port) {
+        if (port == 8096) { removeCredential(ctx, 8096); return "WIZARD_RESET"; }
         ServerCredential cur = getCredential(ctx, port);
         String user = (cur != null && cur.configured && !cur.username.equals("Not set yet"))
                 ? cur.username : ((port == 8384) ? "pocketadmin" : "admin");
@@ -183,11 +184,11 @@ public class SecurityVaultManager {
                     } else if (port == 8096) {
                         File jfData = new File(ctx.getFilesDir(), "jellyfin_real/data");
                         File sysXml = new File(ctx.getFilesDir(), "jellyfin_real/config/system.xml");
-                        if (isRemove && jfData.exists()) {
+                        if (jfData.exists()) {
                             File[] files = jfData.listFiles();
                             if (files != null) {
                                 for (File f : files) {
-                                    if (f.getName().startsWith("jellyfin.db")) f.delete();
+                                    if (f.getName().startsWith("jellyfin.db") || f.getName().startsWith("library.db")) f.delete();
                                 }
                             }
                         }
