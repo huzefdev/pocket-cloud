@@ -428,7 +428,7 @@ public class PocketCloudService extends Service {
             public void run() {
                 try {
                     Thread.sleep(250);
-                    if (port == 8080) activeInstance.startNativeFileBrowser(false);
+                    if (port == 8080) activeInstance.startNativeFileBrowser(true);
                     else if (port == 8384) activeInstance.startNativeSyncthing();
                     else if (port == 8096 && activeInstance.jellyfinManager != null) activeInstance.jellyfinManager.startIfInstalled();
                 } catch (Exception ignored) {}

@@ -116,23 +116,7 @@ public class SecurityVaultManager {
                     Thread.sleep(300);
 
                     if (port == 8080) {
-                        File fbDir = new File(ctx.getFilesDir(), "filebrowser");
-                        if (!fbDir.exists()) fbDir.mkdirs();
-                        File fbDb = new File(fbDir, "filebrowser.db");
-                        File fbBin = new File(ctx.getApplicationInfo().nativeLibraryDir, "libfilebrowser.so");
-                        if (fbBin.exists()) {
-                            if (fbDb.exists()) fbDb.delete();
-                            new ProcessBuilder(
-                                    fbBin.getAbsolutePath(), "config", "init",
-                                    "--address", "0.0.0.0", "--port", "8080",
-                                    "--root", "/sdcard", "--database", fbDb.getAbsolutePath()
-                            ).directory(fbDir).start().waitFor();
-                            new ProcessBuilder(
-                                    fbBin.getAbsolutePath(), "users", "add", user, pass,
-                                    "--perm.admin=true", "--database", fbDb.getAbsolutePath()
-                            ).directory(fbDir).start().waitFor();
-                            PocketCloudService.appendLog("[VAULT] FileBrowser (:8080) DB rebuilt with new password for " + user);
-                        }
+                        PocketCloudService.appendLog("[VAULT] Rebuilding FileBrowser (:8080) DB with new password for " + user);
                     } else if (port == 8384) {
                         File configXml = new File(ctx.getFilesDir(), "syncthing/config.xml");
                         if (configXml.exists()) {
