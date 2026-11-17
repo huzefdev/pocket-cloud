@@ -68,6 +68,7 @@ public class WebWorkspaceActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        GlassTheme.applySavedTheme(this);
         overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out);
 
         Window w = getWindow();

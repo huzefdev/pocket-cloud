@@ -111,6 +111,7 @@ public class MainActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        GlassTheme.applySavedTheme(this);
         SecurityVaultManager.ensureInitialized(this);
         if (!PocketCloudService.isEngineActive) {
             try {
@@ -382,6 +383,23 @@ public class MainActivity extends Activity {
                 SecurityVaultSheet.openWithBiometric(MainActivity.this, 0);
             }
         });
+        TextView btnThemeStudio = new TextView(this);
+        btnThemeStudio.setText("THEME");
+        btnThemeStudio.setTextColor(GlassTheme.TEXT_PRIMARY);
+        btnThemeStudio.setTextSize(11f);
+        btnThemeStudio.setTypeface(Typeface.DEFAULT_BOLD);
+        btnThemeStudio.setPadding(GlassTheme.dp(this, 11), GlassTheme.dp(this, 7), GlassTheme.dp(this, 11), GlassTheme.dp(this, 7));
+        btnThemeStudio.setBackground(GlassTheme.createPillButton(this, GlassTheme.BG_CARD_ELEVATED, GlassTheme.BORDER_SUBTLE));
+        LinearLayout.LayoutParams tPillLp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        tPillLp.rightMargin = GlassTheme.dp(this, 8);
+        btnThemeStudio.setLayoutParams(tPillLp);
+        btnThemeStudio.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                ThemeStudioSheet.show(MainActivity.this);
+            }
+        });
+        topBar.addView(btnThemeStudio);
         topBar.addView(btnBiometricVault);
 
         topBar.addView(avatarBadge);
@@ -1185,6 +1203,7 @@ public class MainActivity extends Activity {
         card.addView(sub);
 
         String[][] rows = new String[][]{
+                {"Glassmorphism Theme Studio (12)", "THEMES", "themes"},
                 {"Storage & Media Access", "CONFIGURE", "storage"},
                 {"Biometric Credential Vault", "OPEN", "vault"},
                 {"Zero-Cloud Network Audit", "INSPECT", "audit"},
@@ -1226,7 +1245,8 @@ public class MainActivity extends Activity {
                 @Override
                 public void onClick(View v) {
                     d.dismiss();
-                    if ("storage".equals(r[2])) showStoragePermissionGuide();
+                    if ("themes".equals(r[2])) ThemeStudioSheet.show(MainActivity.this);
+                    else if ("storage".equals(r[2])) showStoragePermissionGuide();
                     else if ("vault".equals(r[2])) SecurityVaultSheet.openWithBiometric(MainActivity.this, 0);
                     else if ("audit".equals(r[2])) SecurityVaultSheet.openWithBiometric(MainActivity.this, 1);
                     else if ("kill".equals(r[2])) toggleCloudEngine(false);
