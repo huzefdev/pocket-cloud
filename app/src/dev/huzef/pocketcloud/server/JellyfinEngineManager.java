@@ -64,6 +64,31 @@ public class JellyfinEngineManager {
         }
     }
 
+    private void prepareMinimalEtc(File rootfs) {
+        try {
+            File etc = new File(rootfs, "etc");
+            etc.mkdirs();
+            File resolv = new File(etc, "resolv.conf");
+            if (!resolv.exists()) {
+                FileOutputStream fos = new FileOutputStream(resolv);
+                fos.write("nameserver 8.8.8.8\nnameserver 1.1.1.1\n".getBytes("UTF-8"));
+                fos.close();
+            }
+            File hosts = new File(etc, "hosts");
+            if (!hosts.exists()) {
+                FileOutputStream fos = new FileOutputStream(hosts);
+                fos.write("127.0.0.1 localhost\n::1 localhost\n".getBytes("UTF-8"));
+                fos.close();
+            }
+            File passwd = new File(etc, "passwd");
+            if (!passwd.exists()) {
+                FileOutputStream fos = new FileOutputStream(passwd);
+                fos.write("root:x:0:0:root:/jf_engine:/bin/sh\n".getBytes("UTF-8"));
+                fos.close();
+            }
+        } catch (Exception ignored) {}
+    }
+
     private File resolveProotLoader(File engineDir) {
         File nativeLoader = new File(context.getApplicationInfo().nativeLibraryDir, "libproot_loader.so");
         if (nativeLoader.exists() && nativeLoader.canExecute()) {
@@ -273,7 +298,8 @@ public class JellyfinEngineManager {
                 new File(rootfs, "sys").mkdirs();
                 new File(rootfs, "media").mkdirs();
                 new File(rootfs, "jf_engine").mkdirs();
-                new File(rootfs, "tmp").mkdirs();
+                new File(rootfs, "tmp/dotnet_bundle").mkdirs();
+                prepareMinimalEtc(rootfs);
 
                 cmd.add(prootBin.getAbsolutePath());
                 cmd.add("--kill-on-exit");
@@ -299,9 +325,6 @@ public class JellyfinEngineManager {
 
                 String relJf = jfBin.getAbsolutePath().replace(dir.getAbsolutePath(), "/jf_engine");
                 String relJfDir = jfBin.getParentFile().getAbsolutePath().replace(dir.getAbsolutePath(), "/jf_engine");
-                cmd.add("/lib/ld-linux-aarch64.so.1");
-                cmd.add("--library-path");
-                cmd.add("/usr/lib/aarch64-linux-gnu:/lib/aarch64-linux-gnu:/usr/lib:/lib:" + relJfDir);
                 cmd.add(relJf);
                 cmd.add("--datadir");
                 cmd.add("/jf_engine/data");
@@ -353,6 +376,9 @@ public class JellyfinEngineManager {
             pb.environment().put("DOTNET_EnableIoUring", "0");
             pb.environment().put("DOTNET_GCHeapHardLimit", "300000000");
             pb.environment().put("COMPlus_EnableDiagnostics", "0");
+            pb.environment().put("DOTNET_BUNDLE_EXTRACT_BASE_DIR", "/tmp/dotnet_bundle");
+            pb.environment().put("HOME", "/jf_engine");
+            pb.environment().put("USER", "root");
             String nativeDir = context.getApplicationInfo().nativeLibraryDir;
             pb.environment().put("LD_LIBRARY_PATH", nativeDir + ":/usr/lib/aarch64-linux-gnu:/lib/aarch64-linux-gnu:/usr/lib:/lib:/jf_engine");
             pb.environment().put("JELLYFIN_PublishedServerUrl", "http://" + HardwareTelemetry.detectLocalIpv4() + ":8096");
