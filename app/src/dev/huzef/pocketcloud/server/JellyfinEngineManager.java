@@ -129,7 +129,8 @@ public class JellyfinEngineManager {
     private boolean ensureGlibcRootfs(File dir, InstallProgressListener listener) {
         File rootfs = new File(dir, "rootfs");
         File targetLd = new File(rootfs, "lib/ld-linux-aarch64.so.1");
-        if (targetLd.exists() && targetLd.length() > 10000) {
+        File targetCpp = new File(rootfs, "lib/libstdc++.so.6");
+        if (targetLd.exists() && targetLd.length() > 10000 && targetCpp.exists() && targetCpp.length() > 100000) {
             return true;
         }
         try {
