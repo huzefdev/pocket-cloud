@@ -1095,26 +1095,40 @@ public class WebWorkspaceActivity extends Activity {
     private void launchExternalHardwarePlayer() {
         if (webView == null) return;
         String js = "(function(){"
-                + "var v=document.querySelector('video');"
-                + "if(v&&v.currentSrc)return v.currentSrc;"
-                + "if(v&&v.src)return v.src;"
+                + "try{"
+                + "  var token=(window.ApiClient&&window.ApiClient.accessToken)?window.ApiClient.accessToken():'';"
+                + "  var server=(window.ApiClient&&window.ApiClient.serverAddress)?window.ApiClient.serverAddress():window.location.origin;"
+                + "  var id='';"
+                + "  var m=window.location.hash.match(/id=([a-f0-9]{32})/i);"
+                + "  if(m)id=m[1];"
+                + "  if(!id&&window.performance&&performance.getEntriesByType){"
+                + "    var res=performance.getEntriesByType('resource');"
+                + "    for(var i=res.length-1;i>=0;i--){"
+                + "      var rm=new RegExp('/Videos/([a-f0-9]{32})/','i').exec(res[i].name)||new RegExp('/Items/([a-f0-9]{32})','i').exec(res[i].name);"
+                + "      if(rm){id=rm[1];break;}"
+                + "    }"
+                + "  }"
+                + "  if(id&&token)return server+'/Videos/'+id+'/stream?Static=true&api_key='+token;"
+                + "  var v=document.querySelector('video');"
+                + "  if(v&&v.currentSrc&&v.currentSrc.indexOf('blob:')!==0)return v.currentSrc;"
+                + "}catch(e){}"
                 + "return '';"
                 + "})();";
         webView.evaluateJavascript(js, new ValueCallback<String>() {
             @Override
             public void onReceiveValue(String value) {
                 String streamUrl = value != null ? value.replace("\"", "").trim() : "";
-                if (streamUrl.isEmpty() || "null".equals(streamUrl) || streamUrl.startsWith("blob:")) {
-                    Toast.makeText(WebWorkspaceActivity.this, "Start playing a video first, or open Jellyfin Settings > Playback > Disable Transcoding", Toast.LENGTH_LONG).show();
+                if (streamUrl.isEmpty() || "null".equals(streamUrl)) {
+                    Toast.makeText(WebWorkspaceActivity.this, "Open a movie/episode page or start playback first!", Toast.LENGTH_SHORT).show();
                     return;
                 }
                 try {
                     Intent intent = new Intent(Intent.ACTION_VIEW);
                     intent.setDataAndType(Uri.parse(streamUrl), "video/*");
                     intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                    startActivity(Intent.createChooser(intent, "Play with Hardware Video Player"));
+                    startActivity(Intent.createChooser(intent, "Play Direct Stream (Zero-Lag Hardware Decode)"));
                 } catch (Exception e) {
-                    Toast.makeText(WebWorkspaceActivity.this, "No external video player found", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(WebWorkspaceActivity.this, "Install VLC or MX Player for direct hardware playback", Toast.LENGTH_LONG).show();
                 }
             }
         });
