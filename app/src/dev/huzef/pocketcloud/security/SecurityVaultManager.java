@@ -96,12 +96,8 @@ public class SecurityVaultManager {
         if (username == null || username.trim().isEmpty()) {
             username = (port == 8384) ? "pocketadmin" : "admin";
         }
-        if (newPassword == null || newPassword.trim().length() < 4) return;
+        if (newPassword == null || newPassword.trim().length() < 6) return;
         String cleanPass = newPassword.trim();
-        // FileBrowser v2.27+ strictly enforces minimum 12 characters in BoltDB CLI
-        if (port == 8080 && cleanPass.length() < 12) {
-            cleanPass = cleanPass + "000000000000".substring(0, 12 - cleanPass.length());
-        }
 
         SharedPreferences prefs = ctx.getSharedPreferences(PREFS_VAULT, Context.MODE_PRIVATE);
         String ts = "Synced " + new SimpleDateFormat("dd MMM HH:mm", Locale.US).format(new Date());
