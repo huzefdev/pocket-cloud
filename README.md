@@ -1,3 +1,17 @@
+<!-- POCKETCLOUD_HERO_PREVIEW_START -->
+<div align="center">
+
+# POCKET CLOUD (`v0.52`)
+**Turn Any Android Device Into a Zero-Trust, Bare-Metal Personal Cloud & Media Server**
+
+[![Watch Official Launch Film](https://img.youtube.com/vi/o47lkjf4tgg/maxresdefault.jpg)](https://youtu.be/o47lkjf4tgg "Watch PocketCloud Launch Commercial")
+
+▶️ **[Watch Official Launch Commercial](https://youtu.be/o47lkjf4tgg)** &nbsp;•&nbsp; ⬇️ **[Download Latest APK (`v0.52` • ARM64)](https://github.com/huzefdev/pocket-cloud/releases/latest/download/Pocketcloud.apk)** &nbsp;•&nbsp; 📋 **[All Releases](https://github.com/huzefdev/pocket-cloud/releases)**
+
+</div>
+
+---
+
 <div align="center">
 
 # POCKET CLOUD
